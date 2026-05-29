@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-head"><h1>커뮤니티 글쓰기</h1></section>
+<form class="panel" method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button class="btn btn-primary">등록</button>
+</form>
+{% endblock %}

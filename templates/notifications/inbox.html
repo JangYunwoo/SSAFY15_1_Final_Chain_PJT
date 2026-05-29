@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-head"><h1>알림 / 메일</h1></section>
+<div class="row g-4 mx-3">
+  <div class="col-lg-6">
+    <div class="panel">
+      <h2>알림</h2>
+      {% for n in notifications %}
+      <div class="notice"><strong>{{ n.title }}</strong><p>{{ n.body }}</p><span>{{ n.created_at|date:'Y-m-d H:i' }}</span></div>
+      {% empty %}
+      <p class="text-muted">알림이 없습니다.</p>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="panel">
+      <h2>메일</h2>
+      {% for m in mails %}
+      <div class="notice"><strong>{{ m.subject }}</strong><p>{{ m.body|truncatechars:80 }}</p><span>{{ m.created_at|date:'Y-m-d H:i' }}</span></div>
+      {% empty %}
+      <p class="text-muted">메일이 없습니다.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

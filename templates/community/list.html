@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-head">
+  <h1>커뮤니티</h1>
+  <a class="btn btn-primary" href="{% url 'community:create' %}">글쓰기</a>
+</section>
+<div class="panel">
+  <table class="table">
+    <thead><tr><th>제목</th><th>분석 ID</th><th>신뢰도</th><th>작성자</th><th>작성일</th></tr></thead>
+    <tbody>
+      {% for post in posts %}
+      <tr>
+        <td><a href="{% url 'community:detail' post.pk %}">{{ post.title }}</a></td>
+        <td>{% if post.analysis %}{{ post.analysis.analysis_code }}{% else %}-{% endif %}</td>
+        <td>{{ post.confidence_snapshot }}</td>
+        <td>{{ post.author.display_name }}</td>
+        <td>{{ post.created_at|date:'Y-m-d H:i' }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="text-center text-muted">게시글이 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

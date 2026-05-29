@@ -1,0 +1,23 @@
+<div class="table-responsive">
+  <table class="table align-middle">
+    <thead>
+      <tr><th>분석 ID</th><th>LOT</th><th>Wafer</th><th>분석 일시</th><th>수율(%)</th><th>결함</th><th>신뢰도</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for item in analyses %}
+      <tr>
+        <td>{{ item.analysis_code }}</td>
+        <td>{% if item.lot %}{{ item.lot.lot_id }}{% else %}-{% endif %}</td>
+        <td>{% if item.wafer_id %}{{ item.wafer_id }}{% elif item.wafer_index %}{{ item.wafer_index }}{% else %}-{% endif %}</td>
+        <td>{{ item.created_at|date:'Y-m-d H:i' }}</td>
+        <td>{% if item.yield_rate %}{{ item.yield_rate }}{% else %}{{ item.yield_threshold }}{% endif %}</td>
+        <td>{{ item.predicted_label|default:'-' }}</td>
+        <td>{{ item.confidence_percent }}%</td>
+        <td><a class="btn btn-sm btn-outline-primary" href="{% url 'analyses:detail' item.pk %}">상세</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="text-center text-muted">분석 데이터가 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

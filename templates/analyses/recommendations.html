@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-head"><h1>공정 추천 상세</h1></section>
+<div class="panel">
+  <table class="table">
+    <thead><tr><th>순위</th><th>공정</th><th>위험도 점수</th><th>중단 알림</th><th>근거 요약</th></tr></thead>
+    <tbody>
+      {% for rec in analysis.recommendations.all %}
+      <tr>
+        <td>{{ rec.rank }}</td>
+        <td>{{ rec.process }}</td>
+        <td>{{ rec.score }}</td>
+        <td>{{ rec.stop_alert|yesno:'필요,불필요' }}</td>
+        <td>{{ rec.reason }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

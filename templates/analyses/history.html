@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}히스토리{% endblock %}
+{% block content %}
+<section class="page-head"><h1>분석 히스토리</h1></section>
+<div class="panel">
+  <h2>최근 배치</h2>
+  <div class="table-responsive">
+    <table class="table">
+      <thead><tr><th>배치 ID</th><th>LOT</th><th>상태</th><th>웨이퍼 수</th><th>생성일</th><th></th></tr></thead>
+      <tbody>
+        {% for batch in batches %}
+        <tr>
+          <td>{{ batch.batch_code }}</td>
+          <td>{{ batch.lot.lot_id }}</td>
+          <td>{{ batch.get_status_display }}</td>
+          <td>{{ batch.total_wafers }}</td>
+          <td>{{ batch.created_at|date:'Y-m-d H:i' }}</td>
+          <td><a class="btn btn-sm btn-outline-primary" href="{% url 'analyses:batch_detail' batch.pk %}">상세</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted">배치 데이터가 없습니다.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="panel">{% include 'partials/analysis_table.html' %}</div>
+{% endblock %}

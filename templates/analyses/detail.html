@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}분석 상세{% endblock %}
+{% block content %}
+<section class="page-head">
+  <h1>분석 ID : {{ analysis.analysis_code }}</h1>
+  {% if analysis.batch %}
+  <a class="btn btn-outline-secondary" href="{% url 'analyses:batch_detail' analysis.batch.pk %}">배치로 돌아가기</a>
+  {% else %}
+  <a class="btn btn-outline-secondary" href="{% url 'analyses:history' %}">히스토리로 돌아가기</a>
+  {% endif %}
+</section>
+<div class="row g-4 mx-3">
+  <div class="col-lg-7">
+    <div class="panel">
+      <h2>웨이퍼맵</h2>
+      <div class="wafer-preview">
+        {% if analysis.wafer_image %}
+        <img src="{{ analysis.wafer_image.url }}" alt="wafer map">
+        {% else %}
+        <div class="wafer-grid"></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="panel">
+      <h2>예측 정보</h2>
+      <dl class="info-list">
+        <dt>LOT</dt><dd>{% if analysis.lot %}{{ analysis.lot.lot_id }}{% else %}-{% endif %}</dd>
+        <dt>Wafer</dt><dd>{% if analysis.wafer_id %}{{ analysis.wafer_id }}{% elif analysis.wafer_index %}{{ analysis.wafer_index }}{% else %}-{% endif %}</dd>
+        <dt>장비</dt><dd>{{ analysis.equipment_id|default:'-' }}</dd>
+        <dt>예측 라벨</dt><dd>{{ analysis.predicted_label }}</dd>
+        <dt>신뢰도</dt><dd>{{ analysis.confidence_percent }}%</dd>
+        <dt>모델</dt><dd>{{ analysis.model_version }}</dd>
+        <dt>분석 일시</dt><dd>{{ analysis.created_at|date:'Y-m-d H:i:s' }}</dd>
+      </dl>
+      <p class="summary">{{ analysis.summary }}</p>
+      <a class="btn btn-primary" href="{% url 'analyses:recommendations' analysis.pk %}">추천 상세 보기</a>
+      <a class="btn btn-outline-primary" href="{% url 'reports:create_from_analysis' analysis.pk %}">보고서 작성</a>
+    </div>
+  </div>
+</div>
+<div class="panel mt-4">
+  <h2>추천 점검 공정</h2>
+  <ol class="rank-list">
+    {% for rec in analysis.recommendations.all %}
+    <li><strong>{{ rec.process }}</strong><span>{{ rec.score }}점</span><p>{{ rec.reason }}</p></li>
+    {% endfor %}
+  </ol>
+</div>
+{% endblock %}

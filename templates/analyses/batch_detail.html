@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}배치 상세{% endblock %}
+{% block content %}
+<section class="page-head">
+  <h1>{{ batch.batch_code }} / {{ batch.lot.lot_id }}</h1>
+  <a class="btn btn-outline-secondary" href="{% url 'analyses:history' %}">히스토리로 돌아가기</a>
+</section>
+<div class="metric-grid">
+  <div class="metric"><span>상태</span><strong>{{ batch.get_status_display }}</strong></div>
+  <div class="metric"><span>웨이퍼 수</span><strong>{{ batch.total_wafers }}</strong></div>
+  <div class="metric"><span>낮은 신뢰도</span><strong>{{ batch.low_confidence_count }}</strong></div>
+  <div class="metric"><span>생성자</span><strong>{{ batch.created_by.display_name }}</strong></div>
+</div>
+{% if batch.failed_message %}
+<div class="panel mt-4"><div class="alert alert-danger mb-0">{{ batch.failed_message }}</div></div>
+{% endif %}
+<div class="panel mt-4">
+  <h2>웨이퍼별 분석 결과</h2>
+  {% include 'partials/analysis_table.html' with analyses=batch.wafer_analyses.all %}
+</div>
+{% endblock %}

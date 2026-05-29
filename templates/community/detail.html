@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-head"><h1>{{ post.title }}</h1></section>
+<article class="panel">
+  <p class="text-muted">{{ post.author.display_name }} · {{ post.created_at|date:'Y-m-d H:i' }}</p>
+  {% if post.analysis %}
+  <p><a class="btn btn-sm btn-outline-primary" href="{% url 'analyses:detail' post.analysis.pk %}">{{ post.analysis.analysis_code }} 분석 보기</a></p>
+  {% endif %}
+  <pre>{{ post.content }}</pre>
+</article>
+<div class="panel mt-4">
+  <h2>댓글</h2>
+  {% for c in post.comments.all %}
+  <div class="comment"><strong>{{ c.user.display_name }}</strong><p>{{ c.content }}</p></div>
+  {% empty %}
+  <p class="text-muted">아직 댓글이 없습니다.</p>
+  {% endfor %}
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="btn btn-primary">등록</button>
+  </form>
+</div>
+{% endblock %}

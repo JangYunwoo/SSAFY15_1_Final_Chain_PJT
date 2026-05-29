@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}프로필{% endblock %}
+{% block content %}
+<section class="page-head"><h1>프로필</h1></section>
+<div class="row g-4 mx-3">
+  <div class="col-lg-4">
+    <div class="panel profile-card">
+      <div class="avatar">{{ user.display_name|first }}</div>
+      <h2>{{ user.display_name }}</h2>
+      <p>{{ user.email }}</p>
+      <p>{{ user.department }} / {{ user.title }}</p>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <form class="panel" method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button class="btn btn-primary">저장</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

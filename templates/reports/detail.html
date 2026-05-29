@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-head no-print">
+  <h1>{{ report.title }}</h1>
+  <div>
+    <button class="btn btn-outline-secondary" onclick="window.print()">인쇄</button>
+    <a class="btn btn-primary" href="{% url 'reports:share' report.pk %}">커뮤니티에 올리기</a>
+  </div>
+</section>
+<article class="panel report-print"><pre>{{ report.body }}</pre></article>
+{% endblock %}
