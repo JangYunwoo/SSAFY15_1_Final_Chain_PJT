@@ -5,8 +5,13 @@ from . import views
 app_name = "accounts"
 
 urlpatterns = [
-    path("login/", views.WaferLoginView.as_view(), name="login"),
+    path("api/me/", views.api_me, name="api_me"),
+    path("api/login/", views.api_login, name="api_login"),
+    path("api/logout/", views.api_logout, name="api_logout"),
+    path("api/register/", views.api_register, name="api_register"),
+    path("api/profile/", views.api_profile, name="api_profile"),
+    path("login/", views.spa, name="login"),
     path("logout/", views.WaferLogoutView.as_view(), name="logout"),
-    path("register/", views.register, name="register"),
-    path("profile/", views.profile, name="profile"),
+    path("register/", views.spa, name="register"),
+    path("profile/", views.spa, name="profile"),
 ]

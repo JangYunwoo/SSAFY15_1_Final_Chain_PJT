@@ -14,8 +14,8 @@ Django Template 기반 반도체 웨이퍼맵 분류/점검 우선순위 추천 
 ## 설치
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
 python manage.py makemigrations
 python manage.py migrate

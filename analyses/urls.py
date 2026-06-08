@@ -5,10 +5,16 @@ from . import views
 app_name = "analyses"
 
 urlpatterns = [
-    path("upload/", views.upload, name="upload"),
-    path("history/", views.history, name="history"),
-    path("batches/<int:pk>/", views.batch_detail, name="batch_detail"),
-    path("<int:pk>/", views.detail, name="detail"),
-    path("<int:pk>/recommendations/", views.recommendation_detail, name="recommendations"),
-    path("model/performance/", views.model_performance, name="model_performance"),
+    path("api/lots/", views.api_lots, name="api_lots"),
+    path("api/upload/", views.api_upload, name="api_upload"),
+    path("api/history/", views.api_history, name="api_history"),
+    path("api/batches/<int:pk>/", views.api_batch_detail, name="api_batch_detail"),
+    path("api/<int:pk>/", views.api_detail, name="api_detail"),
+    path("api/model/performance/", views.api_model_performance, name="api_model_performance"),
+    path("upload/", views.spa, name="upload"),
+    path("history/", views.spa, name="history"),
+    path("batches/<int:pk>/", views.spa, name="batch_detail"),
+    path("<int:pk>/", views.spa, name="detail"),
+    path("<int:pk>/recommendations/", views.spa, name="recommendations"),
+    path("model/performance/", views.spa, name="model_performance"),
 ]

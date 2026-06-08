@@ -4,4 +4,7 @@ from . import views
 
 app_name = "notifications"
 
-urlpatterns = [path("", views.inbox, name="inbox")]
+urlpatterns = [
+    path("api/", views.api_inbox, name="api_inbox"),
+    path("", views.spa, name="inbox"),
+]

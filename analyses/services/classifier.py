@@ -13,17 +13,15 @@ from django.conf import settings
 try:
     import numpy as np
     import pandas as pd
-    import torch
-    import torch.nn as nn
     from scipy.ndimage import zoom
-    from torchvision import models
 except Exception:
     np = None
     pd = None
-    torch = None
-    nn = None
     zoom = None
-    models = None
+
+torch = None
+nn = None
+models = None
 
 
 @dataclass
@@ -33,7 +31,18 @@ class PredictionResult:
     probabilities: dict[str, float]
 
 
-if nn and models:
+def get_resnet_class():
+    global torch, nn, models
+    if torch is None or nn is None or models is None:
+        try:
+            import torch as torch_module
+            import torch.nn as nn_module
+            from torchvision import models as torchvision_models
+        except Exception:
+            return None
+        torch = torch_module
+        nn = nn_module
+        models = torchvision_models
 
     class RadAIResNet(nn.Module):
         def __init__(self, num_classes=8):
@@ -48,13 +57,13 @@ if nn and models:
         def forward(self, x):
             return self.base(x)
 
-else:
-    RadAIResNet = None
+    return RadAIResNet
 
 
 @lru_cache(maxsize=1)
 def load_model():
-    if not torch or not RadAIResNet:
+    model_class = get_resnet_class()
+    if not torch or not model_class:
         return None, None
 
     model_path = Path(settings.WAFER_MODEL_PATH)
@@ -62,7 +71,7 @@ def load_model():
         return None, None
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = RadAIResNet(num_classes=len(settings.WAFER_LABELS))
+    model = model_class(num_classes=len(settings.WAFER_LABELS))
     checkpoint = torch.load(model_path, map_location=device)
     state = checkpoint.get("model_state_dict", checkpoint)
     model.load_state_dict(state)
