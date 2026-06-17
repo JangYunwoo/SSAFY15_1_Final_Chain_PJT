@@ -12,7 +12,6 @@ import UploadView from "./views/UploadView.vue";
 import HistoryView from "./views/HistoryView.vue";
 import BatchDetailView from "./views/BatchDetailView.vue";
 import AnalysisDetailView from "./views/AnalysisDetailView.vue";
-import ModelPerformanceView from "./views/ModelPerformanceView.vue";
 import CommunityListView from "./views/CommunityListView.vue";
 import CommunityFormView from "./views/CommunityFormView.vue";
 import CommunityDetailView from "./views/CommunityDetailView.vue";
@@ -27,7 +26,6 @@ const routes = [
   { path: "/analyses/upload/", component: UploadView },
   { path: "/analyses/history/", component: HistoryView },
   { path: "/analyses/batches/:id/", component: BatchDetailView },
-  { path: "/analyses/model/performance/", component: ModelPerformanceView },
   { path: "/analyses/:id/", component: AnalysisDetailView },
   { path: "/analyses/:id/recommendations/", component: AnalysisDetailView },
   { path: "/reports/analysis/:id/new/", component: ReportFormView },

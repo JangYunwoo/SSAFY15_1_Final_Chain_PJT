@@ -110,6 +110,7 @@ class WaferAnalysis(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING)
     predicted_label = models.CharField(max_length=50, blank=True)
     confidence = models.DecimalField(max_digits=5, decimal_places=4, default=0)
+    probabilities_json = models.JSONField(blank=True, null=True)
     result_csv = models.FileField(upload_to="wafer/results/", blank=True, null=True)
     model_version = models.CharField(max_length=50, default="resnet34-v1")
     summary = models.TextField(blank=True)

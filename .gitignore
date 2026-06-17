@@ -9,3 +9,4 @@ models/*.pt
 models/*.pth
 node_modules/
 dist/
+LotData/

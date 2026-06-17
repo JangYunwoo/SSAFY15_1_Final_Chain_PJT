@@ -32,7 +32,9 @@ async function submit() {
 <template>
   <section class="auth-page">
     <form class="auth-panel form" @submit.prevent="submit">
-      <div><h1>회원가입</h1><p>분석 이력과 리포트를 관리할 계정을 만듭니다.</p></div>
+      <div>
+        <h1>회원가입</h1>
+      </div>
       <div v-if="error" class="error">{{ error }}</div>
       <div class="field"><label>아이디</label><input v-model="form.username" class="input" required></div>
       <div class="field"><label>이름</label><input v-model="form.name" class="input"></div>

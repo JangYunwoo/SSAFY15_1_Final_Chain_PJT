@@ -6,6 +6,15 @@ import { api } from "../services/api";
 const route = useRoute();
 const analysis = ref(null);
 
+function titleCase(value) {
+  if (!value) {
+    return "-";
+  }
+  return String(value)
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+}
+
 onMounted(async () => {
   analysis.value = (await api(`/analyses/api/${route.params.id}/`)).analysis;
 });
@@ -23,10 +32,25 @@ onMounted(async () => {
     <div class="grid cols-2">
       <section class="panel">
         <h2>분석 결과</h2>
-        <p><span :class="['badge', analysis.isLowConfidence ? 'warn' : 'ok']">{{ analysis.predictedLabel || "-" }} · {{ analysis.confidencePercent }}%</span></p>
+        <div class="prediction-strip">
+          <div
+            v-for="candidate in analysis.topPredictions"
+            :key="candidate.rank"
+            :class="['prediction-card', candidate.rank === 1 ? (analysis.isLowConfidence ? 'warn' : 'ok') : '']"
+          >
+            <span>{{ candidate.rank }}위</span>
+            <strong>{{ candidate.label || "-" }}</strong>
+            <em>{{ candidate.percent }}%</em>
+          </div>
+          <div v-if="!analysis.topPredictions?.length" class="prediction-card">
+            <span>1위</span>
+            <strong>{{ analysis.predictedLabel || "-" }}</strong>
+            <em>{{ analysis.confidencePercent }}%</em>
+          </div>
+        </div>
         <dl class="grid cols-2">
           <div><dt class="muted">LOT</dt><dd>{{ analysis.lot?.lotId || "-" }}</dd></div>
-          <div><dt class="muted">공정</dt><dd>{{ analysis.process || "-" }}</dd></div>
+          <div><dt class="muted">공정</dt><dd>{{ titleCase(analysis.process) }}</dd></div>
           <div><dt class="muted">장비</dt><dd>{{ analysis.equipmentId || "-" }}</dd></div>
           <div><dt class="muted">수율</dt><dd>{{ analysis.yieldRate ?? "-" }}</dd></div>
         </dl>
@@ -42,7 +66,7 @@ onMounted(async () => {
       <h2>추천 공정</h2>
       <div class="grid">
         <div v-for="item in analysis.recommendations" :key="item.rank" class="card">
-          <strong>{{ item.rank }}. {{ item.process }}</strong>
+          <strong>{{ item.rank }}. {{ titleCase(item.process) }}</strong>
           <span class="badge" style="margin-left:8px">{{ item.score }}</span>
           <p>{{ item.reason }}</p>
         </div>

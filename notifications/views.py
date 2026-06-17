@@ -22,6 +22,7 @@ def api_inbox(request):
                 "title": item.title,
                 "body": item.body,
                 "isRead": item.is_read,
+                "isFavorite": item.is_favorite,
                 "analysisId": item.analysis_id,
                 "createdAt": serialize_datetime(item.created_at),
             }

@@ -51,3 +51,27 @@ Vue 개발 서버는 `vite.config.js`의 proxy 설정으로 Django API 요청을
 - `/reports/api/*`
 - `/notifications/api/*`
 - `/media/*`
+
+## LOT CSV 자동 분석
+
+자동 분석용 폴더 구조:
+
+```text
+LotData/
+  incoming/
+  processed/
+  failed/
+```
+
+별도 터미널에서 감시 명령을 실행합니다.
+
+```bash
+python manage.py watch_lot_folder
+```
+
+`LotData/incoming/`에 CSV 파일을 넣으면 자동으로 분석합니다.
+
+- 분석 성공: `LotData/processed/`로 이동
+- 분석 실패: `LotData/failed/`로 이동
+
+CSV의 `lot_id`는 DB에 등록된 `Lot ID`와 일치해야 합니다.

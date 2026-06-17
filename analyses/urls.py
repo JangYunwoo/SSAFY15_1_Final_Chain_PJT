@@ -10,11 +10,9 @@ urlpatterns = [
     path("api/history/", views.api_history, name="api_history"),
     path("api/batches/<int:pk>/", views.api_batch_detail, name="api_batch_detail"),
     path("api/<int:pk>/", views.api_detail, name="api_detail"),
-    path("api/model/performance/", views.api_model_performance, name="api_model_performance"),
     path("upload/", views.spa, name="upload"),
     path("history/", views.spa, name="history"),
     path("batches/<int:pk>/", views.spa, name="batch_detail"),
     path("<int:pk>/", views.spa, name="detail"),
     path("<int:pk>/recommendations/", views.spa, name="recommendations"),
-    path("model/performance/", views.spa, name="model_performance"),
 ]

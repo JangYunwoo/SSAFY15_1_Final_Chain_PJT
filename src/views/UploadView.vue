@@ -22,7 +22,10 @@ async function submit() {
   message.value = "";
   try {
     const data = await api("/analyses/api/upload/", { method: "POST", body });
-    router.push(`/analyses/batches/${data.batch.id}/`);
+    message.value = data.message || "분석이 시작되었습니다.";
+    window.setTimeout(() => {
+      router.push("/analyses/history/");
+    }, 700);
   } catch (err) {
     message.value = err.message || "업로드에 실패했습니다.";
   } finally {
@@ -35,16 +38,23 @@ async function submit() {
   <div class="page">
     <div class="page-head"><h1>분석 업로드</h1></div>
     <form class="panel form" @submit.prevent="submit">
-      <div v-if="message" class="error">{{ message }}</div>
+      <div v-if="message" :class="loading ? 'notice' : 'notice'">{{ message }}</div>
       <div class="field">
         <label>LOT</label>
         <select v-model="lot" required>
           <option value="">선택</option>
-          <option v-for="item in lots" :key="item.id" :value="item.id">{{ item.lotId }} - {{ item.process || "공정 미지정" }}</option>
+          <option v-for="item in lots" :key="item.id" :value="item.id">
+            {{ item.lotId }} - {{ item.process || "공정 미지정" }}
+          </option>
         </select>
       </div>
-      <div class="field"><label>CSV 파일</label><input class="input" type="file" accept=".csv" required @change="file = $event.target.files[0]"></div>
-      <button class="btn primary" :disabled="loading">{{ loading ? "분석 중" : "업로드 및 분석" }}</button>
+      <div class="field">
+        <label>CSV 파일</label>
+        <input class="input" type="file" accept=".csv" required @change="file = $event.target.files[0]">
+      </div>
+      <button class="btn primary" :disabled="loading">
+        {{ loading ? "분석 중" : "업로드 및 분석" }}
+      </button>
     </form>
   </div>
 </template>

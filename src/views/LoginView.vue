@@ -29,11 +29,16 @@ async function submit() {
     <form class="auth-panel form" @submit.prevent="submit">
       <div>
         <h1>Wafer Insight</h1>
-        <p>Vue 프론트와 Django API로 동작하는 분석 대시보드</p>
       </div>
       <div v-if="error" class="error">{{ error }}</div>
-      <div class="field"><label>아이디</label><input v-model="form.username" class="input" autocomplete="username" required></div>
-      <div class="field"><label>비밀번호</label><input v-model="form.password" class="input" type="password" autocomplete="current-password" required></div>
+      <div class="field">
+        <label>아이디</label>
+        <input v-model="form.username" class="input" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>비밀번호</label>
+        <input v-model="form.password" class="input" type="password" autocomplete="current-password" required>
+      </div>
       <button class="btn primary" :disabled="loading">{{ loading ? "로그인 중" : "로그인" }}</button>
       <router-link to="/accounts/register/" class="muted">계정이 없으면 회원가입</router-link>
     </form>
