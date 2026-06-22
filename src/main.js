@@ -17,6 +17,7 @@ import CommunityFormView from "./views/CommunityFormView.vue";
 import CommunityDetailView from "./views/CommunityDetailView.vue";
 import ReportFormView from "./views/ReportFormView.vue";
 import InboxView from "./views/InboxView.vue";
+import MailDetailView from "./views/MailDetailView.vue";
 import ProfileView from "./views/ProfileView.vue";
 
 const routes = [
@@ -33,6 +34,8 @@ const routes = [
   { path: "/community/new/", component: CommunityFormView },
   { path: "/community/:id/", component: CommunityDetailView },
   { path: "/notifications/", component: InboxView },
+  { path: "/mails/", component: InboxView },
+  { path: "/mails/:id/", component: MailDetailView },
   { path: "/accounts/profile/", component: ProfileView }
 ];
 

@@ -12,6 +12,7 @@ const notifications = ref([]);
 const mails = ref([]);
 const activePopover = ref("");
 const activeMailTab = ref("new");
+const navOpen = ref(false);
 
 const unreadNotifications = computed(() => notifications.value.filter((item) => !item.isRead));
 const unreadMails = computed(() => mails.value.filter((mail) => !mail.isRead));
@@ -46,6 +47,10 @@ function closePopover() {
   activePopover.value = "";
 }
 
+function closeNav() {
+  navOpen.value = false;
+}
+
 function handleDocumentClick(event) {
   if (!activePopover.value) return;
   if (!event.target.closest(".notification-menu")) {
@@ -62,29 +67,45 @@ async function logout() {
 }
 
 watch(() => store.user?.id, loadNotificationSummary, { immediate: true });
-watch(() => route.fullPath, closePopover);
-onMounted(() => document.addEventListener("click", handleDocumentClick));
-onBeforeUnmount(() => document.removeEventListener("click", handleDocumentClick));
+watch(() => route.fullPath, () => {
+  closePopover();
+  closeNav();
+});
+onMounted(() => {
+  document.addEventListener("click", handleDocumentClick);
+  window.addEventListener("inbox-counts-updated", loadNotificationSummary);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener("click", handleDocumentClick);
+  window.removeEventListener("inbox-counts-updated", loadNotificationSummary);
+});
 </script>
 
 <template>
   <router-view v-if="isPublic" />
   <div v-else class="app-shell">
-    <aside class="sidebar no-print">
+    <aside class="sidebar no-print" :class="{ open: navOpen }">
       <router-link class="brand" to="/">Wafer Insight</router-link>
       <nav class="nav">
         <router-link to="/">대시보드</router-link>
         <router-link to="/analyses/upload/">분석 업로드</router-link>
         <router-link to="/analyses/history/">분석 이력</router-link>
         <router-link to="/community/">커뮤니티</router-link>
-        <router-link to="/notifications/">알림/메일</router-link>
         <router-link to="/accounts/profile/">프로필</router-link>
         <a v-if="store.user?.isStaff" href="http://127.0.0.1:8000/admin/">관리자</a>
       </nav>
     </aside>
     <main class="content">
       <header class="topbar no-print">
+        <button class="menu-toggle" type="button" :aria-expanded="navOpen" aria-label="메뉴" @click="navOpen = !navOpen">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6h16"></path>
+            <path d="M4 12h16"></path>
+            <path d="M4 18h16"></path>
+          </svg>
+        </button>
         <div class="topbar-user">
+          <span class="user-name">{{ store.user?.displayName }}</span>
           <div class="topbar-actions">
             <div class="notification-menu">
               <button class="notification-link" type="button" aria-label="알림" @click="togglePopover('notification')">
@@ -105,7 +126,7 @@ onBeforeUnmount(() => document.removeEventListener("click", handleDocumentClick)
                   </p>
                 </div>
                 <div class="notification-popover-footer">
-                  <router-link class="mail-link" to="/notifications/">알림/메일로 이동</router-link>
+                  <router-link class="mail-link" to="/notifications/">알림으로 이동</router-link>
                 </div>
               </section>
             </div>
@@ -144,12 +165,11 @@ onBeforeUnmount(() => document.removeEventListener("click", handleDocumentClick)
                   </p>
                 </div>
                 <div class="notification-popover-footer">
-                  <router-link class="mail-link" to="/notifications/">알림/메일로 이동</router-link>
+                  <router-link class="mail-link" to="/mails/">메일로 이동</router-link>
                 </div>
               </section>
             </div>
           </div>
-          <span>{{ store.user?.displayName }}</span>
         </div>
         <button class="btn ghost" type="button" @click="logout">로그아웃</button>
       </header>

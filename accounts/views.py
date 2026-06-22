@@ -7,6 +7,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from api_utils import api_error, api_ok, form_errors, json_body
 from .forms import ProfileForm, UserRegisterForm
+from .models import User
 
 
 def spa(request, *args, **kwargs):
@@ -79,3 +80,19 @@ def api_profile(request):
         return api_error("프로필 정보를 확인해주세요.", errors=form_errors(form))
     form.save()
     return api_ok({"user": serialize_user(request.user)})
+
+
+@login_required
+def api_users(request):
+    users = User.objects.filter(is_active=True).exclude(id=request.user.id).order_by("name", "username")
+    return api_ok({
+        "users": [
+            {
+                "id": user.id,
+                "displayName": user.display_name(),
+                "email": user.email,
+                "department": user.department,
+            }
+            for user in users
+        ]
+    })

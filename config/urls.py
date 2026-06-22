@@ -2,6 +2,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+from notifications import views as notification_views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -11,6 +12,8 @@ urlpatterns = [
     path("community/", include("community.urls")),
     path("reports/", include("reports.urls")),
     path("notifications/", include("notifications.urls")),
+    path("mails/<int:pk>/", notification_views.spa, name="mail_detail"),
+    path("mails/", notification_views.spa, name="mails"),
 ]
 
 if settings.DEBUG:
