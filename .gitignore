@@ -5,8 +5,5 @@ db.sqlite3
 media/
 staticfiles/
 .env
-models/*.pt
-models/*.pth
 node_modules/
 dist/
-LotData/
