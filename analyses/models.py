@@ -144,6 +144,51 @@ class ProcessRecommendation(models.Model):
         unique_together = ("analysis", "rank")
 
 
+class BatchInsight(models.Model):
+    """CSV 배치 또는 선택한 웨이퍼 묶음에 대한 분석 결과."""
+
+    batch = models.ForeignKey(AnalysisBatch, on_delete=models.CASCADE, related_name="insights")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="batch_insights")
+    analyses = models.ManyToManyField(WaferAnalysis, related_name="batch_insights", blank=True)
+    title = models.CharField(max_length=200)
+    label_distribution = models.JSONField(default=dict)
+    recommendation_text = models.TextField(blank=True)
+    recommendations_json = models.JSONField(default=list)
+    report_body = models.TextField(blank=True)
+    is_custom = models.BooleanField(default=False)
+    is_fallback = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class GmsConnectionState(models.Model):
+    """Stops repeated paid GMS calls while its gateway is unhealthy."""
+
+    is_circuit_open = models.BooleanField(default=False)
+    failure_count = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class CustomAnalysis(models.Model):
+    """Analyst-selected wafers across one or more CSV batches."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="custom_analyses")
+    title = models.CharField(max_length=200)
+    analyses = models.ManyToManyField(WaferAnalysis, related_name="custom_analyses")
+    label_distribution = models.JSONField(default=dict)
+    recommendation_text = models.TextField(blank=True)
+    recommendations_json = models.JSONField(default=list)
+    report_body = models.TextField(blank=True)
+    is_fallback = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
 class ModelVersion(models.Model):
     model_name = models.CharField(max_length=100, default="WaferClassifier")
     version = models.CharField(max_length=30)

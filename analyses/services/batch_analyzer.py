@@ -1,3 +1,5 @@
+import logging
+import shutil
 from pathlib import Path
 
 from django.core.files import File
@@ -6,11 +8,15 @@ from django.utils import timezone
 
 from analyses.models import AnalysisBatch, Lot, ProcessRecommendation, WaferAnalysis
 from analyses.services.batch_parser import parse_batch_csv
+from analyses.services.batch_insights import create_batch_insight
 from analyses.services.classifier import predict_wafer_map
 from analyses.services.llm_advisor import generate_advice
 from analyses.services.recommender import build_summary, recommend_processes
 from analyses.services.wafer_renderer import render_wafer_map_png
 from notifications.models import Notification
+
+
+logger = logging.getLogger(__name__)
 
 
 def make_analysis_code():
@@ -75,6 +81,10 @@ def analyze_batch_rows(batch, rows, user):
     batch.total_wafers = len(rows)
     batch.status = AnalysisBatch.STATUS_DONE
     batch.save(update_fields=["total_wafers", "status"])
+    return batch
+
+    # Kept below only for migration compatibility; notifications are now sent
+    # after the batch-level AI analysis finishes.
     Notification.objects.create(
         user=user,
         type="analysis",
@@ -106,7 +116,6 @@ def find_lot_for_rows(rows):
         raise ValueError(f"DB에 LOT({lot_id})가 없습니다.") from exc
 
 
-@transaction.atomic
 def create_batch_from_csv_file(file_path, user):
     source = Path(file_path)
     rows = parse_batch_csv(source)
@@ -122,7 +131,24 @@ def create_batch_from_csv_file(file_path, user):
         batch.uploaded_file.save(source.name, File(csv_file), save=True)
 
     try:
-        return analyze_batch_rows(batch, rows, user)
+        # Keep the uploaded batch record outside the analysis transaction so a
+        # failed analysis can be recorded without masking the original error.
+        with transaction.atomic():
+            analyzed_batch = analyze_batch_rows(batch, rows, user)
+        # CSV 분석 완료 뒤 배치 단위 AI 요약/추천/보고서를 자동 생성한다.
+        try:
+            insight = create_batch_insight(analyzed_batch, user)
+        except Exception:
+            insight = None
+            logger.exception("Automatic batch insight generation failed for %s", analyzed_batch.batch_code)
+        Notification.objects.create(
+            user=user,
+            type="analysis",
+            title="배치 AI 분석 완료" if insight and not insight.is_fallback else "배치 분석 완료",
+            body=f"{analyzed_batch.batch_code} 배치의 분석 결과를 확인할 수 있습니다.",
+            batch=analyzed_batch,
+        )
+        return analyzed_batch
     except Exception as exc:
         batch.status = AnalysisBatch.STATUS_FAILED
         batch.failed_message = str(exc)

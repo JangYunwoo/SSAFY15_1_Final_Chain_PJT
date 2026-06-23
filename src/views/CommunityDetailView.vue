@@ -1,46 +1,15 @@
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../services/api";
 import { dateText } from "../utils/format";
-
-const route = useRoute();
-const post = ref(null);
-const content = ref("");
-
-async function loadPost() {
-  post.value = (await api(`/community/api/${route.params.id}/`)).post;
-}
-
-async function comment() {
-  await api(`/community/api/${post.value.id}/comments/`, {
-    method: "POST",
-    body: JSON.stringify({ content: content.value })
-  });
-  content.value = "";
-  await loadPost();
-}
-
+const route = useRoute(); const post = ref(null); const commentContent = ref(""); const replyContent = ref(""); const replyTo = ref(null); const sharedOpen = ref(false);
+const threadedComments = computed(() => { if (!post.value) return []; const byId = new Map(post.value.comments.map((item) => [item.id, item])); const replies = new Map(); const roots = []; for (const item of post.value.comments) { if (!item.parentId) { roots.push(item); continue; } const directParent = byId.get(item.parentId); let root = directParent; while (root?.parentId) root = byId.get(root.parentId); const normalized = directParent?.parentId && !item.content.startsWith("@") ? { ...item, content: `@${directParent.user} ${item.content}` } : item; if (root) { if (!replies.has(root.id)) replies.set(root.id, []); replies.get(root.id).push(normalized); } } return roots.map((item) => ({ ...item, replies: replies.get(item.id) || [] })); });
+function mentionPrefix(text) { return text.startsWith("@") ? text.split(" ")[0] : ""; } function commentText(text) { const mention = mentionPrefix(text); return mention ? text.slice(mention.length).trimStart() : text; }
+async function loadPost() { post.value = (await api(`/community/api/${route.params.id}/`)).post; }
+async function comment(parentId = null) { const isReply = Boolean(parentId || replyTo.value); const text = isReply ? replyContent.value : commentContent.value; await api(`/community/api/${post.value.id}/comments/`, { method: "POST", body: JSON.stringify({ content: text, parentId: parentId || replyTo.value }) }); if (isReply) replyContent.value = ""; else commentContent.value = ""; replyTo.value = null; await loadPost(); }
+async function deleteComment(id) { await api(`/community/api/${post.value.id}/comments/${id}/`, { method: "DELETE" }); await loadPost(); }
+async function toggleFavorite() { const data = await api(`/community/api/${post.value.id}/favorite/`, { method: "POST" }); post.value.isFavorite = data.isFavorite; }
 onMounted(loadPost);
 </script>
-
-<template>
-  <div v-if="post" class="page">
-    <div class="page-head"><h1>{{ post.title }}</h1></div>
-    <article class="panel">
-      <p class="muted">{{ post.author }} · {{ dateText(post.createdAt) }}</p>
-      <pre class="summary">{{ post.content }}</pre>
-    </article>
-    <section class="panel" style="margin-top:16px">
-      <h2>댓글</h2>
-      <div v-for="item in post.comments" :key="item.id" class="comment">
-        <strong>{{ item.user }}</strong>
-        <p>{{ item.content }}</p>
-      </div>
-      <form class="form" @submit.prevent="comment">
-        <textarea v-model="content" required></textarea>
-        <button class="btn primary">댓글 등록</button>
-      </form>
-    </section>
-  </div>
-</template>
+<template><div v-if="post" class="page"><div class="page-head"><h1>{{ post.title }}</h1><div class="actions"><button class="star-button" :class="{active: post.isFavorite}" @click="toggleFavorite">{{ post.isFavorite ? '★' : '☆' }}</button><router-link class="btn ghost" to="/community/">목록으로</router-link></div></div><section v-if="post.sharedAnalysis" class="batch-card"><div class="batch-row"><div><strong>{{ post.sharedAnalysis.title }}</strong><span class="muted">{{ post.sharedAnalysis.meta }}</span></div><button class="fold-button" :aria-label="sharedOpen ? '접기' : '펼치기'" @click="sharedOpen = !sharedOpen">{{ sharedOpen ? '⌃' : '⌄' }}</button></div><div v-if="sharedOpen" class="batch-content"><div class="wafer-grid"><article v-for="item in post.sharedAnalysis.wafers" :key="item.id" class="wafer-card"><img v-if="item.waferImage" :src="item.waferImage" :alt="item.waferId"><div><strong>{{ item.waferId || item.analysisCode }}</strong><span :class="['badge', item.isNormal ? 'ok' : 'warn']">{{ item.isNormal ? '정상' : (item.predictedLabel || '-') }}</span></div></article></div></div></section><article class="panel" :style="{ marginTop: post.sharedAnalysis ? '16px' : '0' }"><p class="muted">{{ post.author }} · {{ post.department || '-' }} · {{ dateText(post.createdAt) }}</p><pre class="summary">{{ post.content }}</pre></article><section class="panel" style="margin-top:16px"><h2>댓글</h2><div class="comment-thread"><article v-for="item in threadedComments" :key="item.id" :class="['comment', { deleted: item.isDeleted }]"><div class="comment-head"><div class="comment-author"><span class="comment-avatar">{{ item.user.slice(0, 1) }}</span><strong>{{ item.user }}</strong><span class="comment-department">{{ item.department || '-' }}</span><span class="muted">{{ dateText(item.createdAt) }}</span></div><div class="comment-actions"><button v-if="!item.isDeleted" class="reply-button" type="button" @click="replyTo = replyTo === item.id ? null : item.id">답글</button><button v-if="item.canDelete" class="delete-button" type="button" @click="deleteComment(item.id)">삭제</button></div></div><p><span v-if="mentionPrefix(item.content)" class="mention">{{ mentionPrefix(item.content) }}</span>{{ commentText(item.content) }}</p><form v-if="replyTo === item.id" class="form reply-form" @submit.prevent="comment(item.id)"><textarea v-model="replyContent" placeholder="답글을 입력하세요." required></textarea><div class="actions"><button class="btn ghost" type="button" @click="replyTo = null">취소</button><button class="btn primary">답글 등록</button></div></form><div v-if="item.replies.length" class="reply-list"><article v-for="reply in item.replies" :key="reply.id" :class="['comment', 'reply', { deleted: reply.isDeleted }]"><div class="comment-head"><div class="comment-author"><span class="comment-avatar">{{ reply.user.slice(0, 1) }}</span><strong>{{ reply.user }}</strong><span class="comment-department">{{ reply.department || '-' }}</span><span class="muted">{{ dateText(reply.createdAt) }}</span></div><div class="comment-actions"><button v-if="!reply.isDeleted" class="reply-button" type="button" @click="replyTo = replyTo === reply.id ? null : reply.id">답글</button><button v-if="reply.canDelete" class="delete-button" type="button" @click="deleteComment(reply.id)">삭제</button></div></div><p><span v-if="mentionPrefix(reply.content)" class="mention">{{ mentionPrefix(reply.content) }}</span>{{ commentText(reply.content) }}</p><form v-if="replyTo === reply.id" class="form reply-form" @submit.prevent="comment(reply.id)"><textarea v-model="replyContent" placeholder="답글을 입력하세요." required></textarea><div class="actions"><button class="btn ghost" type="button" @click="replyTo = null">취소</button><button class="btn primary">답글 등록</button></div></form></article></div></article></div><form class="form comment-compose" @submit.prevent="comment()"><textarea v-model="commentContent" placeholder="댓글을 입력하세요." required></textarea><button class="btn primary">댓글 등록</button></form></section></div></template>

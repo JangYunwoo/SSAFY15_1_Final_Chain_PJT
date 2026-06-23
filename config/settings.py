@@ -1,7 +1,9 @@
 from pathlib import Path
 import os
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-wafer-insight-secret-key")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
@@ -85,3 +87,7 @@ LOGOUT_REDIRECT_URL = "accounts:login"
 WAFER_MODEL_PATH = os.environ.get("WAFER_MODEL_PATH", str(BASE_DIR / "models" / "best_radai_resnet.pt"))
 WAFER_LABELS = ["Center", "Donut", "Edge-Loc", "Edge-Ring", "Loc", "Random", "Scratch", "Near-full"]
 LOW_CONFIDENCE_THRESHOLD = 0.85
+GMS_API_URL = os.environ.get("GMS_API_URL", "https://gms.ssafy.io/gmsapi/api.openai.com/v1/chat/completions")
+GMS_KEY = os.environ.get("GMS_KEY", "")
+GMS_MODEL = os.environ.get("GMS_MODEL", "gpt-5.4-mini")
+GMS_TIMEOUT = int(os.environ.get("GMS_TIMEOUT", "45"))

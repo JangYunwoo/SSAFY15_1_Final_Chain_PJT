@@ -29,6 +29,8 @@ const routes = [
   { path: "/analyses/:id/", component: AnalysisDetailView },
   { path: "/analyses/:id/recommendations/", component: AnalysisDetailView },
   { path: "/reports/analysis/:id/new/", component: ReportFormView },
+  { path: "/reports/batch/:id/new/", component: ReportFormView, meta: { reportType: "batch" } },
+  { path: "/reports/custom/:id/new/", component: ReportFormView, meta: { reportType: "custom" } },
   { path: "/community/", component: CommunityListView },
   { path: "/community/new/", component: CommunityFormView },
   { path: "/community/:id/", component: CommunityDetailView },

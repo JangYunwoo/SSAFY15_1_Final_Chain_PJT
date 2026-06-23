@@ -30,6 +30,7 @@ def serialize_user(user):
         "department": user.department,
         "title": user.title,
         "phone": user.phone,
+        "profileImage": user.profile_image.url if user.profile_image else "",
         "role": user.role,
         "isStaff": user.is_staff,
     }
@@ -74,7 +75,8 @@ def api_register(request):
 def api_profile(request):
     if request.method == "GET":
         return api_ok({"user": serialize_user(request.user)})
-    form = ProfileForm(json_body(request), instance=request.user)
+    data = request.POST if request.content_type and request.content_type.startswith("multipart/") else json_body(request)
+    form = ProfileForm(data, request.FILES, instance=request.user)
     if not form.is_valid():
         return api_error("프로필 정보를 확인해주세요.", errors=form_errors(form))
     form.save()

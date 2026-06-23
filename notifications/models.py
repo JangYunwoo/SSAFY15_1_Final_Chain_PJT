@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.db import models
 
-from analyses.models import WaferAnalysis
+from analyses.models import AnalysisBatch, WaferAnalysis
 
 
 class Notification(models.Model):
@@ -11,6 +11,8 @@ class Notification(models.Model):
     body = models.TextField()
     is_read = models.BooleanField(default=False)
     analysis = models.ForeignKey(WaferAnalysis, on_delete=models.SET_NULL, null=True, blank=True)
+    batch = models.ForeignKey(AnalysisBatch, on_delete=models.SET_NULL, null=True, blank=True)
+    target_url = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

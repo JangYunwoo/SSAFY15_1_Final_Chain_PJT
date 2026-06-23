@@ -41,7 +41,10 @@ export async function api(url, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.ok !== true) {
-    throw data;
+    throw {
+      ...data,
+      message: data.message || data.detail || `요청에 실패했습니다. (HTTP ${response.status})`
+    };
   }
   return data;
 }

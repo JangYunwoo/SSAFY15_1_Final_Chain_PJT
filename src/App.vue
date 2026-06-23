@@ -12,6 +12,7 @@ const notifications = ref([]);
 const mails = ref([]);
 const activePopover = ref("");
 const activeMailTab = ref("new");
+let refreshTimer;
 
 const unreadNotifications = computed(() => notifications.value.filter((item) => !item.isRead));
 const unreadMails = computed(() => mails.value.filter((mail) => !mail.isRead));
@@ -46,6 +47,23 @@ function closePopover() {
   activePopover.value = "";
 }
 
+async function openNotification(item) {
+  await api(`/notifications/api/notifications/${item.id}/read/`, { method: "POST" });
+  await loadNotificationSummary();
+  router.push(item.targetUrl || "/notifications/");
+}
+
+async function openMail(mail) {
+  await api(`/notifications/api/mails/${mail.id}/read/`, { method: "POST" });
+  await loadNotificationSummary();
+  router.push(`/notifications/?mail=${mail.id}`);
+}
+
+async function markAllNotificationsRead() {
+  await api("/notifications/api/notifications/read-all/", { method: "POST" });
+  await loadNotificationSummary();
+}
+
 function handleDocumentClick(event) {
   if (!activePopover.value) return;
   if (!event.target.closest(".notification-menu")) {
@@ -63,8 +81,14 @@ async function logout() {
 
 watch(() => store.user?.id, loadNotificationSummary, { immediate: true });
 watch(() => route.fullPath, closePopover);
-onMounted(() => document.addEventListener("click", handleDocumentClick));
-onBeforeUnmount(() => document.removeEventListener("click", handleDocumentClick));
+onMounted(() => {
+  document.addEventListener("click", handleDocumentClick);
+  refreshTimer = window.setInterval(loadNotificationSummary, 15000);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener("click", handleDocumentClick);
+  window.clearInterval(refreshTimer);
+});
 </script>
 
 <template>
@@ -96,15 +120,16 @@ onBeforeUnmount(() => document.removeEventListener("click", handleDocumentClick)
               <section v-if="activePopover === 'notification'" class="notification-popover">
                 <div class="notification-popover-title">알림</div>
                 <div class="notification-preview-list">
-                  <article v-for="item in unreadNotifications" :key="item.id" class="notification-preview">
+                  <button v-for="item in unreadNotifications" :key="item.id" class="notification-preview notification-preview-button" @click="openNotification(item)">
                     <strong>{{ item.title }}</strong>
                     <p>{{ dateText(item.createdAt) }}</p>
-                  </article>
+                  </button>
                   <p v-if="unreadNotifications.length === 0" class="notification-empty">
                     새로운 알림이 없습니다.
                   </p>
                 </div>
                 <div class="notification-popover-footer">
+                  <button class="mark-all-link" type="button" @click="markAllNotificationsRead">모두 읽음으로 표시</button>
                   <router-link class="mail-link" to="/notifications/">알림/메일로 이동</router-link>
                 </div>
               </section>
@@ -135,10 +160,10 @@ onBeforeUnmount(() => document.removeEventListener("click", handleDocumentClick)
                   </button>
                 </div>
                 <div class="notification-preview-list">
-                  <article v-for="mail in visiblePopupMails" :key="mail.id" class="notification-preview">
+                  <button v-for="mail in visiblePopupMails" :key="mail.id" class="notification-preview notification-preview-button" @click="openMail(mail)">
                     <strong>{{ mail.subject }}</strong>
                     <p>{{ mail.sender }} · {{ dateText(mail.createdAt) }}</p>
-                  </article>
+                  </button>
                   <p v-if="visiblePopupMails.length === 0" class="notification-empty">
                     표시할 메일이 없습니다.
                   </p>
@@ -149,7 +174,7 @@ onBeforeUnmount(() => document.removeEventListener("click", handleDocumentClick)
               </section>
             </div>
           </div>
-          <span>{{ store.user?.displayName }}</span>
+          <span>{{ store.user?.displayName }} · {{ store.user?.department || "-" }}</span>
         </div>
         <button class="btn ghost" type="button" @click="logout">로그아웃</button>
       </header>

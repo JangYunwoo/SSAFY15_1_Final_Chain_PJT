@@ -2,75 +2,23 @@
 import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../services/api";
-
 const route = useRoute();
 const analysis = ref(null);
-
-function titleCase(value) {
-  if (!value) {
-    return "-";
-  }
-  return String(value)
-    .toLowerCase()
-    .replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
-}
-
-onMounted(async () => {
-  analysis.value = (await api(`/analyses/api/${route.params.id}/`)).analysis;
-});
+onMounted(async () => { analysis.value = (await api(`/analyses/api/${route.params.id}/`)).analysis; });
 </script>
 
 <template>
   <div v-if="analysis" class="page">
-    <div class="page-head">
-      <h1>{{ analysis.analysisCode }}</h1>
-      <div class="actions">
-        <router-link class="btn ghost" :to="`/reports/analysis/${analysis.id}/new/`">보고서</router-link>
-        <router-link class="btn ghost" to="/analyses/history/">목록</router-link>
-      </div>
-    </div>
+    <div class="page-head"><h1>{{ analysis.analysisCode }}</h1><router-link class="btn ghost" to="/analyses/history/">목록</router-link></div>
     <div class="grid cols-2">
       <section class="panel">
         <h2>분석 결과</h2>
-        <div class="prediction-strip">
-          <div
-            v-for="candidate in analysis.topPredictions"
-            :key="candidate.rank"
-            :class="['prediction-card', candidate.rank === 1 ? (analysis.isLowConfidence ? 'warn' : 'ok') : '']"
-          >
-            <span>{{ candidate.rank }}위</span>
-            <strong>{{ candidate.label || "-" }}</strong>
-            <em>{{ candidate.percent }}%</em>
-          </div>
-          <div v-if="!analysis.topPredictions?.length" class="prediction-card">
-            <span>1위</span>
-            <strong>{{ analysis.predictedLabel || "-" }}</strong>
-            <em>{{ analysis.confidencePercent }}%</em>
-          </div>
-        </div>
-        <dl class="grid cols-2">
-          <div><dt class="muted">LOT</dt><dd>{{ analysis.lot?.lotId || "-" }}</dd></div>
-          <div><dt class="muted">공정</dt><dd>{{ titleCase(analysis.process) }}</dd></div>
-          <div><dt class="muted">장비</dt><dd>{{ analysis.equipmentId || "-" }}</dd></div>
-          <div><dt class="muted">수율</dt><dd>{{ analysis.yieldRate ?? "-" }}</dd></div>
-        </dl>
-        <pre class="summary">{{ analysis.summary }}</pre>
+        <div v-if="analysis.isNormal" class="prediction-strip"><div class="prediction-card ok"><span>수율 기준</span><strong>정상</strong><em>{{ analysis.yieldRate }}%</em></div></div>
+        <div v-else class="prediction-strip"><div v-for="candidate in analysis.topPredictions" :key="candidate.rank" class="prediction-card"><span>{{ candidate.rank }}순위</span><strong>{{ candidate.label }}</strong><em>{{ candidate.percent }}%</em></div></div>
+        <dl class="grid cols-2"><div><dt class="muted">LOT</dt><dd>{{ analysis.lot?.lotId || '-' }}</dd></div><div><dt class="muted">공정</dt><dd>{{ analysis.process || '-' }}</dd></div><div><dt class="muted">장비</dt><dd>{{ analysis.equipmentId || '-' }}</dd></div><div><dt class="muted">수율</dt><dd>{{ analysis.yieldRate ?? '-' }}</dd></div></dl>
+        <p class="muted">공정 추천과 AI 해석은 분석 이력에서 CSV 배치 단위로 제공합니다.</p>
       </section>
-      <section class="panel">
-        <h2>Wafer Map</h2>
-        <img v-if="analysis.waferImage" class="wafer-img" :src="analysis.waferImage" alt="wafer map">
-        <div v-else class="empty">이미지가 없습니다.</div>
-      </section>
+      <section class="panel"><h2>Wafer Map</h2><img v-if="analysis.waferImage" class="wafer-img" :src="analysis.waferImage" alt="wafer map"><div v-else class="empty">이미지가 없습니다.</div></section>
     </div>
-    <section class="panel" style="margin-top:16px">
-      <h2>추천 공정</h2>
-      <div class="grid">
-        <div v-for="item in analysis.recommendations" :key="item.rank" class="card">
-          <strong>{{ item.rank }}. {{ titleCase(item.process) }}</strong>
-          <span class="badge" style="margin-left:8px">{{ item.score }}</span>
-          <p>{{ item.reason }}</p>
-        </div>
-      </div>
-    </section>
   </div>
 </template>

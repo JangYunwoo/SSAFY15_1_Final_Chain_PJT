@@ -6,12 +6,13 @@ from django.core.files.storage import FileSystemStorage
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.utils.text import get_valid_filename
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 
-from api_utils import api_error, api_ok, form_errors, serialize_datetime, serialize_decimal
+from api_utils import api_error, api_ok, form_errors, json_body, serialize_datetime, serialize_decimal
 
 from .forms import BatchUploadForm
-from .models import AnalysisBatch, Lot, WaferAnalysis, WaferLabel
+from .models import AnalysisBatch, CustomAnalysis, Lot, WaferAnalysis, WaferLabel
+from .services.batch_insights import create_batch_insight, create_custom_analysis
 
 
 @login_required
@@ -85,6 +86,7 @@ def serialize_batch(batch, include_analyses=False):
     data = {
         "id": batch.id,
         "batchCode": batch.batch_code,
+        "fileName": Path(batch.uploaded_file.name).name if batch.uploaded_file else batch.batch_code,
         "lot": serialize_lot(batch.lot),
         "status": batch.status,
         "totalWafers": batch.total_wafers,
@@ -101,6 +103,7 @@ def serialize_batch(batch, include_analyses=False):
 
 
 def serialize_analysis(analysis, include_detail=False):
+    is_normal = analysis.yield_rate is not None and float(analysis.yield_rate) >= 90
     data = {
         "id": analysis.id,
         "analysisCode": analysis.analysis_code,
@@ -112,7 +115,8 @@ def serialize_analysis(analysis, include_detail=False):
         "predictedLabel": analysis.predicted_label,
         "confidence": serialize_decimal(analysis.confidence),
         "confidencePercent": analysis.confidence_percent,
-        "topPredictions": serialize_prediction_candidates(analysis),
+        "topPredictions": [] if is_normal else serialize_prediction_candidates(analysis),
+        "isNormal": is_normal,
         "isLowConfidence": analysis.is_low_confidence,
         "process": analysis.process,
         "step": analysis.step,
@@ -130,6 +134,34 @@ def serialize_analysis(analysis, include_detail=False):
         data["waferMap"] = analysis.wafer_map_json
         data["recommendations"] = [serialize_recommendation(item) for item in analysis.recommendations.all()]
     return data
+
+
+def serialize_insight(insight):
+    return {
+        "id": insight.id,
+        "title": insight.title,
+        "isCustom": insight.is_custom,
+        "isFallback": insight.is_fallback,
+        "labelDistribution": insight.label_distribution,
+        "summary": insight.recommendation_text,
+        "recommendations": insight.recommendations_json,
+        "report": insight.report_body,
+        "createdAt": serialize_datetime(insight.created_at),
+    }
+
+
+def serialize_custom_analysis(custom):
+    return {
+        "id": custom.id,
+        "title": custom.title,
+        "isFallback": custom.is_fallback,
+        "labelDistribution": custom.label_distribution,
+        "summary": custom.recommendation_text,
+        "recommendations": custom.recommendations_json,
+        "report": custom.report_body,
+        "selectedWafers": [serialize_analysis(item) for item in custom.analyses.select_related("lot", "batch")],
+        "createdAt": serialize_datetime(custom.created_at),
+    }
 
 
 @login_required
@@ -182,6 +214,7 @@ def api_history(request):
         {
             "analyses": [serialize_analysis(item) for item in analyses],
             "batches": [serialize_batch(item) for item in batches],
+            "customAnalyses": [serialize_custom_analysis(item) for item in CustomAnalysis.objects.filter(user=request.user)],
             "labels": labels,
         }
     )
@@ -190,7 +223,46 @@ def api_history(request):
 @login_required
 def api_batch_detail(request, pk):
     batch = get_object_or_404(accessible_batches(request.user), pk=pk)
-    return api_ok({"batch": serialize_batch(batch, include_analyses=True)})
+    data = serialize_batch(batch, include_analyses=True)
+    # 이력 폼에는 하나만 보이되, 실제 GMS 응답이 있으면 fallback보다 우선한다.
+    latest_insight = batch.insights.filter(is_fallback=False).order_by("-created_at").first()
+    latest_insight = latest_insight or batch.insights.order_by("-created_at").first()
+    data["insights"] = [serialize_insight(latest_insight)] if latest_insight else []
+    return api_ok({"batch": data})
+
+
+@login_required
+@require_POST
+def api_create_batch_insight(request, pk):
+    try:
+        batch = get_object_or_404(accessible_batches(request.user), pk=pk)
+        selected_ids = json_body(request).get("analysisIds", [])
+        analyses = batch.wafer_analyses.all()
+        is_custom = bool(selected_ids)
+        if is_custom:
+            analyses = analyses.filter(id__in=selected_ids)
+            if analyses.count() != len(set(selected_ids)):
+                return api_error("선택한 웨이퍼 중 이 배치에 없는 항목이 있습니다.")
+        if not analyses.exists():
+            return api_error("분석할 웨이퍼를 한 개 이상 선택해 주세요.")
+
+        insight = create_batch_insight(batch, request.user, analyses=analyses, is_custom=is_custom)
+        return api_ok({"insight": serialize_insight(insight)}, status=201)
+    except Exception as exc:
+        return api_error(f"배치 AI 분석 오류: {exc}", status=500)
+
+
+@login_required
+@require_POST
+def api_create_custom_analysis(request):
+    selected_ids = json_body(request).get("analysisIds", [])
+    if not selected_ids:
+        return api_error("분석할 웨이퍼를 한 개 이상 선택해 주세요.")
+    analyses = accessible_analyses(request.user).filter(id__in=selected_ids)
+    if analyses.count() != len(set(selected_ids)):
+        return api_error("선택한 웨이퍼 중 접근할 수 없는 항목이 있습니다.")
+    custom = create_custom_analysis(request.user, analyses)
+    return api_ok({"customAnalysis": serialize_custom_analysis(custom)}, status=201)
 
 
 @login_required

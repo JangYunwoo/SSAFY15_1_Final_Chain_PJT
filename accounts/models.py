@@ -17,6 +17,8 @@ class User(AbstractUser):
     title = models.CharField("직책", max_length=100, blank=True)
     phone = models.CharField("연락처", max_length=30, blank=True)
 
+    profile_image = models.ImageField(upload_to="profiles/", blank=True, null=True)
+
     USERNAME_FIELD = "username"
     REQUIRED_FIELDS = ["email"]
 

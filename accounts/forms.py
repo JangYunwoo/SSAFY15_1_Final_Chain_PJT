@@ -26,7 +26,7 @@ class UserRegisterForm(UserCreationForm):
 class ProfileForm(forms.ModelForm):
     class Meta:
         model = User
-        fields = ["name", "email", "department", "title", "phone"]
+        fields = ["name", "email", "department", "title", "phone", "profile_image"]
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "email": forms.EmailInput(attrs={"class": "form-control"}),

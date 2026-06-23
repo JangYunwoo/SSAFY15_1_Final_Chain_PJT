@@ -1,43 +1,38 @@
 <script setup>
 import { onMounted, reactive, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { api } from "../services/api";
 
 const route = useRoute();
-const router = useRouter();
-const report = ref(null);
 const form = reactive({ title: "", body: "" });
+const aiBody = ref("");
+const uploaded = ref(false);
+const reportType = route.meta.reportType || "analysis";
 
 onMounted(async () => {
-  const data = await api(`/reports/api/analysis/${route.params.id}/`);
-  report.value = data.report;
-  Object.assign(form, data.report || data.initial);
+  const data = await api(`/reports/api/${reportType}/${route.params.id}/`);
+  const source = data.report || data.initial;
+  form.title = source.title;
+  form.body = source.body || "";
+  aiBody.value = source.aiBody || "";
 });
 
-async function submit() {
-  const data = await api(`/reports/api/analysis/${route.params.id}/`, {
-    method: "POST",
-    body: JSON.stringify(form)
-  });
-  report.value = data.report;
-}
-
-async function share() {
-  const data = await api(`/reports/api/${report.value.id}/share/`, { method: "POST" });
-  router.push(`/community/${data.postId}/`);
+async function upload() {
+  const data = await api(`/reports/api/${reportType}/${route.params.id}/`, { method: "POST", body: JSON.stringify(form) });
+  await api(`/reports/api/${data.report.id}/share/`, { method: "POST" });
+  uploaded.value = true;
 }
 </script>
 
 <template>
   <div class="page">
-    <div class="page-head"><h1>보고서</h1></div>
-    <form class="panel form" @submit.prevent="submit">
+    <div class="page-head"><h1>보고서 작성</h1></div>
+    <form class="panel form" @submit.prevent="upload">
       <div class="field"><label>제목</label><input v-model="form.title" class="input" required></div>
-      <div class="field"><label>본문</label><textarea v-model="form.body" style="min-height:360px" required></textarea></div>
-      <div class="actions">
-        <button class="btn primary">저장</button>
-        <button v-if="report" class="btn ghost" type="button" @click="share">커뮤니티 공유</button>
-      </div>
+      <div class="field"><label>AI 분석 결과</label><pre class="ai-report-box">{{ aiBody }}</pre></div>
+      <div class="field"><label>작성자 코멘트</label><textarea v-model="form.body" placeholder="분석 결과에 대한 추가 의견, 조치 계획, 현장 확인 내용을 작성하세요."></textarea></div>
+      <div class="actions"><button class="btn primary">업로드</button></div>
     </form>
+    <div v-if="uploaded" class="modal-backdrop"><section class="modal"><h2>업로드 완료</h2><p>보고서가 커뮤니티에 업로드되었습니다.</p><router-link class="btn primary" to="/community/">커뮤니티로 이동</router-link></section></div>
   </div>
 </template>

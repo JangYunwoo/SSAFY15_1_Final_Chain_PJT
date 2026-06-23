@@ -1,50 +1,13 @@
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { api } from "../services/api";
 import { dateText } from "../utils/format";
-
-const notifications = ref([]);
-const mails = ref([]);
-
-onMounted(async () => {
-  const data = await api("/notifications/api/");
-  notifications.value = data.notifications;
-  mails.value = data.mails;
-});
+const route = useRoute(); const router = useRouter(); const notifications = ref([]); const mails = ref([]); const sentMails = ref([]); const tab = ref("received"); const selectedMail = computed(() => Number(route.query.mail || 0));
+async function load() { const data = await api("/notifications/api/"); notifications.value = data.notifications; mails.value = data.mails; sentMails.value = data.sentMails; }
+async function openNotification(item) { await api(`/notifications/api/notifications/${item.id}/read/`, { method: "POST" }); router.push(item.targetUrl || "/notifications/"); }
+async function openMail(mail) { if (!mail.isRead) await api(`/notifications/api/mails/${mail.id}/read/`, { method: "POST" }); await load(); router.replace({ query: { mail: mail.id } }); }
+async function favorite(mail) { const data = await api(`/notifications/api/mails/${mail.id}/favorite/`, { method: "POST" }); mail.isFavorite = data.isFavorite; }
+onMounted(load);
 </script>
-
-<template>
-  <div class="page">
-    <div class="page-head"><h1>알림/메일</h1></div>
-    <div class="grid cols-2">
-      <section class="panel">
-        <h2>알림</h2>
-        <div
-          v-for="item in notifications"
-          :key="item.id"
-          :class="['message-item', item.isRead ? 'read' : 'unread']"
-        >
-          <hr class="message-divider">
-          <strong>{{ item.title }}</strong>
-          <p>{{ item.body }}</p>
-          <span>{{ dateText(item.createdAt) }}</span>
-        </div>
-        <div v-if="notifications.length === 0" class="empty">알림이 없습니다.</div>
-      </section>
-      <section class="panel">
-        <h2>메일</h2>
-        <div
-          v-for="mail in mails"
-          :key="mail.id"
-          :class="['message-item', mail.isRead ? 'read' : 'unread']"
-        >
-          <hr class="message-divider">
-          <strong>{{ mail.subject }}</strong>
-          <p class="muted">{{ mail.sender }} · {{ dateText(mail.createdAt) }}</p>
-          <p>{{ mail.body }}</p>
-        </div>
-        <div v-if="mails.length === 0" class="empty">메일이 없습니다.</div>
-      </section>
-    </div>
-  </div>
-</template>
+<template><div class="page"><div class="page-head"><h1>알림 / 메일</h1></div><div class="grid cols-2"><section class="panel"><h2>알림</h2><hr class="message-divider"><div class="notification-card-list"><button v-for="item in notifications" :key="item.id" :class="['notification-card', item.isRead ? 'read' : 'unread']" @click="openNotification(item)"><div class="notification-card-head"><strong>{{ item.title }}</strong><span>{{ dateText(item.createdAt) }}</span></div><p>{{ item.body }}</p></button></div><div v-if="!notifications.length" class="empty">알림이 없습니다.</div></section><section class="panel"><div class="mail-panel-head"><h2>메일</h2><div class="mail-tabs"><button :class="{active: tab === 'received'}" @click="tab = 'received'">받은 메일</button><button :class="{active: tab === 'sent'}" @click="tab = 'sent'">보낸 메일</button></div></div><hr class="message-divider"><template v-for="mail in (tab === 'received' ? mails : sentMails)" :key="mail.id"><article :class="['message-item', mail.isRead ? 'read' : 'unread', selectedMail === mail.id ? 'selected' : '']"><button v-if="tab === 'received'" class="star-button" :class="{active: mail.isFavorite}" @click="favorite(mail)">{{ mail.isFavorite ? '★' : '☆' }}</button><button class="mail-subject" @click="openMail(mail)"><strong>{{ mail.subject }}</strong><p class="muted">{{ tab === 'received' ? mail.sender : mail.receiver }} · {{ dateText(mail.createdAt) }}</p><p>{{ mail.body }}</p></button></article></template><div v-if="!(tab === 'received' ? mails : sentMails).length" class="empty">메일이 없습니다.</div></section></div></div></template>
