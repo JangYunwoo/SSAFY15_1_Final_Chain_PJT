@@ -48,6 +48,14 @@ def _to_decimal(value):
         return None
 
 
+def calculate_yield_rate(wafer_map):
+    values = [float(value) for row in wafer_map for value in row]
+    passed = sum(value == 1.0 for value in values)
+    failed = sum(value == 2.0 for value in values)
+    total = passed + failed
+    return Decimal(str(round(passed / total * 100, 2))) if total else None
+
+
 def _to_datetime(value):
     if value in (None, ""):
         return None
@@ -85,7 +93,7 @@ def parse_batch_csv(file_path):
                     recipe_id=_get(row, "recipe_id", "recipeId"),
                     inspection_time=_to_datetime(_get(row, "inspection_time", "inspectionTime")),
                     die_size=_to_decimal(_get(row, "die_size", "dieSize")),
-                    yield_rate=_to_decimal(_get(row, "yield_rate", "yieldRate")),
+                    yield_rate=_to_decimal(_get(row, "yield_rate", "yieldRate")) or calculate_yield_rate(wafer_map),
                     wafer_map=wafer_map,
                 )
             )

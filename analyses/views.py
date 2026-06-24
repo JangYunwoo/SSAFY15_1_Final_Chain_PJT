@@ -119,7 +119,8 @@ def serialize_batch(batch, include_analyses=False):
 
 
 def serialize_analysis(analysis, include_detail=False):
-    is_normal = analysis.yield_rate is not None and float(analysis.yield_rate) >= 90
+    effective_yield_rate = analysis.effective_yield_rate
+    is_normal = effective_yield_rate is not None and effective_yield_rate >= 90
     data = {
         "id": analysis.id,
         "analysisCode": analysis.analysis_code,
@@ -140,7 +141,7 @@ def serialize_analysis(analysis, include_detail=False):
         "recipeId": analysis.recipe_id,
         "inspectionTime": serialize_datetime(analysis.inspection_time),
         "dieSize": serialize_decimal(analysis.die_size),
-        "yieldRate": serialize_decimal(analysis.yield_rate),
+        "yieldRate": effective_yield_rate,
         "modelVersion": analysis.model_version,
         "summary": analysis.summary,
         "createdAt": serialize_datetime(analysis.created_at),

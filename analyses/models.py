@@ -134,6 +134,17 @@ class WaferAnalysis(models.Model):
         return round(float(self.confidence) * 100, 1)
 
     @property
+    def effective_yield_rate(self):
+        """Use CSV yield when present, otherwise derive it from 1/(1+2)."""
+        if self.yield_rate is not None:
+            return round(float(self.yield_rate), 2)
+        values = [value for row in (self.wafer_map_json or []) for value in row]
+        passed = sum(1 for value in values if float(value) == 1.0)
+        failed = sum(1 for value in values if float(value) == 2.0)
+        total = passed + failed
+        return round(passed / total * 100, 2) if total else None
+
+    @property
     def is_low_confidence(self):
         return float(self.confidence) < getattr(settings, "LOW_CONFIDENCE_THRESHOLD", 0.85)
 

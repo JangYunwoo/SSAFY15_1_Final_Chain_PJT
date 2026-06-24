@@ -11,12 +11,24 @@ from django.utils import timezone
 
 def build_batch_context(analyses):
     analyses = list(analyses)
-    labels = Counter(item.predicted_label or "Unknown" for item in analyses)
-    normal_count = sum(1 for item in analyses if item.yield_rate is not None and float(item.yield_rate) >= 90)
+    normalized_labels = []
+    abnormal_labels = []
+    for item in analyses:
+        is_normal = item.effective_yield_rate is not None and item.effective_yield_rate >= 90
+        label = "Normal" if is_normal else item.predicted_label or "Unknown"
+        normalized_labels.append(label)
+        if not is_normal:
+            abnormal_labels.append(label)
+
+    labels = Counter(normalized_labels)
+    abnormal_distribution = Counter(abnormal_labels)
+    normal_count = labels["Normal"]
     return {
         "wafer_count": len(analyses),
         "normal_count": normal_count,
+        "normal_rate": round(normal_count / len(analyses) * 100, 1) if analyses else 0,
         "label_distribution": dict(labels),
+        "abnormal_distribution": dict(abnormal_distribution),
         "lots": sorted({item.lot.lot_id for item in analyses if item.lot_id}),
         "processes": sorted({item.process for item in analyses if item.process}),
     }
@@ -59,6 +71,8 @@ def request_gms_insight(context):
                 "role": "developer",
                 "content": (
                     "Answer in Korean. Return valid JSON only. Produce a detailed semiconductor process-engineering "
+                    "Use label_distribution, where Normal means yield >= 90%. Use normal_rate to assess overall "
+                    "batch stability, but base process recommendations primarily on abnormal_distribution. "
                     "assessment of roughly 700-900 completion tokens. summary should be 450-650 Korean characters "
                     "and explain the dominant distribution, likely mechanism, and risk. Provide exactly 4 ranked "
                     "recommendations; each reason should be 180-280 Korean characters with concrete inspection items, "
