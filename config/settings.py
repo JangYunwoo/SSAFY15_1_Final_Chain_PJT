@@ -21,7 +21,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "accounts",
-    "analyses",
+    "analyses.apps.AnalysesConfig",
     "community",
     "dashboard",
     "reports",

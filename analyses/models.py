@@ -34,11 +34,18 @@ class LotAssignment(models.Model):
     ROLE_REVIEWER = "reviewer"
     ROLE_CHOICES = [
         (ROLE_OWNER, "담당자"),
-        (ROLE_REVIEWER, "검토자"),
+        (ROLE_REVIEWER, "책임자"),
     ]
 
     lot = models.ForeignKey(Lot, on_delete=models.CASCADE, related_name="assignments")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="lot_assignments")
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="created_lot_assignments",
+        blank=True,
+        null=True,
+    )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_OWNER)
     assigned_at = models.DateTimeField(auto_now_add=True)
 

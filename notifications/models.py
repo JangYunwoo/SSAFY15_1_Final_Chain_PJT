@@ -28,6 +28,7 @@ class Mail(models.Model):
     is_favorite = models.BooleanField(default=False)
     parent = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True)
     analysis = models.ForeignKey(WaferAnalysis, on_delete=models.SET_NULL, null=True, blank=True)
+    report = models.ForeignKey("reports.Report", on_delete=models.SET_NULL, null=True, blank=True, related_name="mails")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

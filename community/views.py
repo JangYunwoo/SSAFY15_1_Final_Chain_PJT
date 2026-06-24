@@ -14,6 +14,43 @@ def spa(request, *args, **kwargs):
     return render(request, "base.html")
 
 
+def assigned_lot_ids(user):
+    return set(user.lot_assignments.values_list("lot_id", flat=True))
+
+
+def post_lot_ids(post):
+    lot_ids = set()
+    if post.analysis_id and post.analysis and post.analysis.lot_id:
+        lot_ids.add(post.analysis.lot_id)
+    if post.batch_id and post.batch:
+        lot_ids.add(post.batch.lot_id)
+    if post.custom_analysis_id and post.custom_analysis:
+        lot_ids.update(
+            post.custom_analysis.analyses.exclude(lot_id__isnull=True).values_list("lot_id", flat=True)
+        )
+    return lot_ids
+
+
+def can_access_post(user, post):
+    if user.is_staff:
+        return True
+
+    lot_ids = post_lot_ids(post)
+    if not lot_ids:
+        return post.author_id == user.id
+    return lot_ids.issubset(assigned_lot_ids(user))
+
+
+def accessible_posts(user):
+    posts = Post.objects.select_related(
+        "author",
+        "analysis__lot",
+        "batch__lot",
+        "custom_analysis",
+    ).prefetch_related("custom_analysis__analyses__lot")
+    return [post for post in posts if can_access_post(user, post)]
+
+
 def serialize_shared_wafer(analysis):
     return {
         "id": analysis.id,
@@ -96,8 +133,7 @@ def serialize_post(post, include_comments=False, user=None):
 
 @login_required
 def api_list_posts(request):
-    posts = Post.objects.select_related("author", "analysis", "batch__lot", "custom_analysis")
-    return api_ok({"posts": [serialize_post(item, user=request.user) for item in posts]})
+    return api_ok({"posts": [serialize_post(item, user=request.user) for item in accessible_posts(request.user)]})
 
 
 @login_required
@@ -114,14 +150,28 @@ def api_create_post(request):
 
 @login_required
 def api_detail(request, pk):
-    post = get_object_or_404(Post.objects.select_related("analysis__lot", "batch__lot", "custom_analysis", "author"), pk=pk)
+    post = get_object_or_404(
+        Post.objects.select_related("analysis__lot", "batch__lot", "custom_analysis", "author").prefetch_related(
+            "custom_analysis__analyses__lot",
+        ),
+        pk=pk,
+    )
+    if not can_access_post(request.user, post):
+        return api_error("접근할 수 없는 게시글입니다.", status=404)
     return api_ok({"post": serialize_post(post, include_comments=True, user=request.user)})
 
 
 @login_required
 @require_POST
 def api_toggle_favorite(request, pk):
-    post = get_object_or_404(Post, pk=pk)
+    post = get_object_or_404(
+        Post.objects.select_related("analysis__lot", "batch__lot", "custom_analysis").prefetch_related(
+            "custom_analysis__analyses__lot",
+        ),
+        pk=pk,
+    )
+    if not can_access_post(request.user, post):
+        return api_error("접근할 수 없는 게시글입니다.", status=404)
     if post.favorited_by.filter(pk=request.user.pk).exists():
         post.favorited_by.remove(request.user)
         is_favorite = False
@@ -134,7 +184,14 @@ def api_toggle_favorite(request, pk):
 @login_required
 @require_POST
 def api_create_comment(request, pk):
-    post = get_object_or_404(Post, pk=pk)
+    post = get_object_or_404(
+        Post.objects.select_related("analysis__lot", "batch__lot", "custom_analysis", "author").prefetch_related(
+            "custom_analysis__analyses__lot",
+        ),
+        pk=pk,
+    )
+    if not can_access_post(request.user, post):
+        return api_error("접근할 수 없는 게시글입니다.", status=404)
     data = json_body(request)
     form = CommentForm(data)
     if not form.is_valid():
@@ -184,7 +241,14 @@ def api_create_comment(request, pk):
 @login_required
 @require_http_methods(["DELETE"])
 def api_delete_comment(request, post_pk, pk):
-    post = get_object_or_404(Post, pk=post_pk)
+    post = get_object_or_404(
+        Post.objects.select_related("analysis__lot", "batch__lot", "custom_analysis").prefetch_related(
+            "custom_analysis__analyses__lot",
+        ),
+        pk=post_pk,
+    )
+    if not can_access_post(request.user, post):
+        return api_error("접근할 수 없는 게시글입니다.", status=404)
     comment = get_object_or_404(post.comments, pk=pk, user=request.user)
     direct_replies = post.comments.filter(parent=comment).exists()
     has_later_reply = False

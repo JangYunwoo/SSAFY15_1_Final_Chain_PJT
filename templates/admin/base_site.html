@@ -1,0 +1,30 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | Wafer Insight Admin{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'admin/custom_admin.css' %}">
+{% endblock %}
+
+{% block branding %}
+<div class="wi-admin-brand">
+  <a href="http://127.0.0.1:5173/" class="wi-admin-logo">Wafer Insight</a>
+  <span class="wi-admin-subtitle">관리자 페이지</span>
+</div>
+{% endblock %}
+
+{% block userlinks %}
+<a href="http://127.0.0.1:5173/">사이트 보기</a> /
+{% if user.has_usable_password %}
+<a href="{% url 'admin:password_change' %}">비밀번호 변경</a> /
+{% endif %}
+<form id="logout-form" method="post" action="{% url 'accounts:logout' %}">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="http://127.0.0.1:5173/">
+  <button type="submit">로그아웃</button>
+</form>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

@@ -31,6 +31,23 @@ def make_batch_code():
     return f"BAT{today}-{count:03d}"
 
 
+def notify_batch_complete(batch, uploaded_by, insight=None):
+    recipients = {uploaded_by.id: uploaded_by}
+    for assignment in batch.lot.assignments.select_related("user"):
+        recipients[assignment.user_id] = assignment.user
+
+    title = "배치 AI 분석 완료" if insight and not insight.is_fallback else "배치 분석 완료"
+    for recipient in recipients.values():
+        Notification.objects.create(
+            user=recipient,
+            type="analysis",
+            title=title,
+            body=f"{batch.batch_code} 배치의 분석 결과를 확인할 수 있습니다.",
+            batch=batch,
+            target_url=f"/analyses/history/?batch={batch.id}",
+        )
+
+
 def analyze_batch_rows(batch, rows, user):
     if not rows:
         raise ValueError("분석할 웨이퍼 데이터가 없습니다.")
@@ -141,13 +158,7 @@ def create_batch_from_csv_file(file_path, user):
         except Exception:
             insight = None
             logger.exception("Automatic batch insight generation failed for %s", analyzed_batch.batch_code)
-        Notification.objects.create(
-            user=user,
-            type="analysis",
-            title="배치 AI 분석 완료" if insight and not insight.is_fallback else "배치 분석 완료",
-            body=f"{analyzed_batch.batch_code} 배치의 분석 결과를 확인할 수 있습니다.",
-            batch=analyzed_batch,
-        )
+        notify_batch_complete(analyzed_batch, user, insight)
         return analyzed_batch
     except Exception as exc:
         batch.status = AnalysisBatch.STATUS_FAILED

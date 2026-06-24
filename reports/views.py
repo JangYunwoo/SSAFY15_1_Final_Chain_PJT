@@ -6,6 +6,7 @@ from api_utils import api_error, api_ok, form_errors, json_body, serialize_datet
 from analyses.models import CustomAnalysis
 from analyses.views import accessible_analyses, accessible_batches
 from community.models import Post
+from notifications.models import Mail
 
 from .forms import ReportForm
 from .models import Report
@@ -97,7 +98,10 @@ def api_report_for_custom(request, custom_pk):
 
 @login_required
 def api_detail(request, pk):
-    report = get_object_or_404(Report.objects.select_related("analysis", "batch", "custom_analysis", "author"), pk=pk, author=request.user)
+    report = get_object_or_404(Report.objects.select_related("analysis", "batch", "custom_analysis", "author"), pk=pk)
+    has_mail_access = Mail.objects.filter(report=report).filter(sender=request.user).exists() or Mail.objects.filter(report=report).filter(receiver=request.user).exists()
+    if report.author_id != request.user.id and not request.user.is_staff and not has_mail_access:
+        return api_error("접근할 수 없는 보고서입니다.", status=404)
     return api_ok({"report": serialize_report(report)})
 
 

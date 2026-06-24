@@ -16,8 +16,13 @@ import CommunityListView from "./views/CommunityListView.vue";
 import CommunityFormView from "./views/CommunityFormView.vue";
 import CommunityDetailView from "./views/CommunityDetailView.vue";
 import ReportFormView from "./views/ReportFormView.vue";
+import ReportDetailView from "./views/ReportDetailView.vue";
 import InboxView from "./views/InboxView.vue";
+import MailDetailView from "./views/MailDetailView.vue";
+import LotAssignmentView from "./views/LotAssignmentView.vue";
 import ProfileView from "./views/ProfileView.vue";
+import UserListView from "./views/UserListView.vue";
+import UserDetailView from "./views/UserDetailView.vue";
 
 const routes = [
   { path: "/accounts/login/", component: LoginView, meta: { public: true } },
@@ -31,11 +36,17 @@ const routes = [
   { path: "/reports/analysis/:id/new/", component: ReportFormView },
   { path: "/reports/batch/:id/new/", component: ReportFormView, meta: { reportType: "batch" } },
   { path: "/reports/custom/:id/new/", component: ReportFormView, meta: { reportType: "custom" } },
+  { path: "/reports/:id/", component: ReportDetailView },
   { path: "/community/", component: CommunityListView },
   { path: "/community/new/", component: CommunityFormView },
   { path: "/community/:id/", component: CommunityDetailView },
   { path: "/notifications/", component: InboxView },
-  { path: "/accounts/profile/", component: ProfileView }
+  { path: "/mails/", component: InboxView },
+  { path: "/mails/:id/", component: MailDetailView },
+  { path: "/management/lot-assignments/", component: LotAssignmentView, meta: { requiresStaff: true } },
+  { path: "/accounts/profile/", component: ProfileView },
+  { path: "/accounts/users/", component: UserListView },
+  { path: "/accounts/users/:id/", component: UserDetailView }
 ];
 
 const router = createRouter({
@@ -51,6 +62,7 @@ router.beforeEach(async (to) => {
   }
   if (!to.meta.public && !store.user) return "/accounts/login/";
   if (to.meta.public && store.user) return "/";
+  if (to.meta.requiresStaff && !store.user?.isStaff) return "/";
 });
 
 createApp(App).use(router).mount("#app");

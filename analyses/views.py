@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.files.storage import FileSystemStorage
 from django.shortcuts import get_object_or_404, render
@@ -11,7 +12,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from api_utils import api_error, api_ok, form_errors, json_body, serialize_datetime, serialize_decimal
 
 from .forms import BatchUploadForm
-from .models import AnalysisBatch, CustomAnalysis, Lot, WaferAnalysis, WaferLabel
+from .models import AnalysisBatch, CustomAnalysis, Lot, LotAssignment, WaferAnalysis, WaferLabel
 from .services.batch_insights import create_batch_insight, create_custom_analysis
 
 
@@ -43,6 +44,21 @@ def serialize_lot(lot):
         "status": lot.status,
         "startedAt": serialize_datetime(lot.started_at),
         "dueAt": serialize_datetime(lot.due_at),
+    }
+
+
+def serialize_lot_assignment(assignment):
+    return {
+        "id": assignment.id,
+        "lotId": assignment.lot_id,
+        "lotName": assignment.lot.lot_id,
+        "userId": assignment.user_id,
+        "userName": assignment.user.display_name(),
+        "userEmail": assignment.user.email,
+        "department": assignment.user.department,
+        "role": assignment.role,
+        "assignedBy": assignment.assigned_by.display_name() if assignment.assigned_by else "-",
+        "assignedAt": serialize_datetime(assignment.assigned_at),
     }
 
 
@@ -167,7 +183,66 @@ def serialize_custom_analysis(custom):
 @login_required
 def api_lots(request):
     lots = Lot.objects.all() if request.user.is_staff else Lot.objects.filter(assignments__user=request.user).distinct()
+    lots = lots.order_by("lot_id")
     return api_ok({"lots": [serialize_lot(lot) for lot in lots]})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def api_lot_assignments(request):
+    if not request.user.is_staff:
+        return api_error("관리자만 LOT을 배정할 수 있습니다.", status=403)
+
+    User = get_user_model()
+    if request.method == "GET":
+        lots = Lot.objects.order_by("lot_id")
+        users = User.objects.filter(is_active=True, is_staff=False).order_by("name", "username")
+        assignments = LotAssignment.objects.select_related("lot", "user", "assigned_by")
+        return api_ok({
+            "lots": [serialize_lot(lot) for lot in lots],
+            "users": [
+                {
+                    "id": user.id,
+                    "displayName": user.display_name(),
+                    "email": user.email,
+                    "department": user.department,
+                }
+                for user in users
+            ],
+            "assignments": [serialize_lot_assignment(item) for item in assignments],
+        })
+
+    data = json_body(request)
+    lot_id = data.get("lotId")
+    user_id = data.get("userId")
+    role = data.get("role") or LotAssignment.ROLE_OWNER
+    if role not in dict(LotAssignment.ROLE_CHOICES):
+        return api_error("배정 역할을 확인해주세요.")
+
+    lot = get_object_or_404(Lot, pk=lot_id)
+    user = get_object_or_404(User.objects.filter(is_active=True, is_staff=False), pk=user_id)
+    assignment, created = LotAssignment.objects.get_or_create(
+        lot=lot,
+        user=user,
+        defaults={"role": role, "assigned_by": request.user},
+    )
+    if not created and assignment.role != role:
+        assignment.role = role
+        if assignment.assigned_by_id is None:
+            assignment.assigned_by = request.user
+        assignment.save(update_fields=["role", "assigned_by"])
+    return api_ok({"assignment": serialize_lot_assignment(assignment), "created": created}, status=201 if created else 200)
+
+
+@login_required
+@require_http_methods(["DELETE"])
+def api_lot_assignment_detail(request, pk):
+    if not request.user.is_staff:
+        return api_error("관리자만 LOT 배정을 해제할 수 있습니다.", status=403)
+
+    assignment = get_object_or_404(LotAssignment, pk=pk)
+    assignment.delete()
+    return api_ok()
 
 
 def save_upload_to_incoming(uploaded_file):

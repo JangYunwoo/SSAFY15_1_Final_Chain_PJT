@@ -8,10 +8,15 @@ const lots = ref([]);
 const lot = ref("");
 const file = ref(null);
 const loading = ref(false);
+const loadingLots = ref(true);
 const message = ref("");
 
 onMounted(async () => {
-  lots.value = (await api("/analyses/api/lots/")).lots;
+  try {
+    lots.value = (await api("/analyses/api/lots/")).lots;
+  } finally {
+    loadingLots.value = false;
+  }
 });
 
 async function submit() {
@@ -38,21 +43,24 @@ async function submit() {
   <div class="page">
     <div class="page-head"><h1>분석 업로드</h1></div>
     <form class="panel form" @submit.prevent="submit">
-      <div v-if="message" :class="loading ? 'notice' : 'notice'">{{ message }}</div>
+      <div v-if="message" class="notice">{{ message }}</div>
       <div class="field">
         <label>LOT</label>
-        <select v-model="lot" required>
-          <option value="">선택</option>
+        <select v-model="lot" :disabled="loadingLots || lots.length === 0" required>
+          <option value="">{{ loadingLots ? "불러오는 중" : "선택" }}</option>
           <option v-for="item in lots" :key="item.id" :value="item.id">
-            {{ item.lotId }} - {{ item.process || "공정 미지정" }}
+            {{ item.lotId }} - {{ item.process || "공정 미입력" }}
           </option>
         </select>
+        <p v-if="!loadingLots && lots.length === 0" class="muted">
+          배정된 LOT이 없습니다. 관리자에게 LOT 배정을 요청해주세요.
+        </p>
       </div>
       <div class="field">
         <label>CSV 파일</label>
         <input class="input" type="file" accept=".csv" required @change="file = $event.target.files[0]">
       </div>
-      <button class="btn primary" :disabled="loading">
+      <button class="btn primary" :disabled="loading || loadingLots || lots.length === 0">
         {{ loading ? "분석 중" : "업로드 및 분석" }}
       </button>
     </form>

@@ -10,9 +10,10 @@ const route = useRoute();
 const isPublic = computed(() => route.meta.public);
 const notifications = ref([]);
 const mails = ref([]);
+const sentMails = ref([]);
 const activePopover = ref("");
 const activeMailTab = ref("new");
-let refreshTimer;
+const navOpen = ref(false);
 
 const unreadNotifications = computed(() => notifications.value.filter((item) => !item.isRead));
 const unreadMails = computed(() => mails.value.filter((mail) => !mail.isRead));
@@ -23,6 +24,7 @@ async function loadNotificationSummary() {
   if (!store.user) {
     notifications.value = [];
     mails.value = [];
+    sentMails.value = [];
     return;
   }
 
@@ -30,9 +32,11 @@ async function loadNotificationSummary() {
     const data = await api("/notifications/api/");
     notifications.value = data.notifications;
     mails.value = data.mails;
+    sentMails.value = data.sentMails || [];
   } catch {
     notifications.value = [];
     mails.value = [];
+    sentMails.value = [];
   }
 }
 
@@ -48,20 +52,22 @@ function closePopover() {
 }
 
 async function openNotification(item) {
-  await api(`/notifications/api/notifications/${item.id}/read/`, { method: "POST" });
-  await loadNotificationSummary();
+  try {
+    await api(`/notifications/api/notifications/${item.id}/read/`, { method: "POST" });
+    item.isRead = true;
+    notifications.value = notifications.value.map((notification) =>
+      notification.id === item.id ? { ...notification, isRead: true } : notification
+    );
+  } catch {
+    return;
+  }
+
+  closePopover();
   router.push(item.targetUrl || "/notifications/");
 }
 
-async function openMail(mail) {
-  await api(`/notifications/api/mails/${mail.id}/read/`, { method: "POST" });
-  await loadNotificationSummary();
-  router.push(`/notifications/?mail=${mail.id}`);
-}
-
-async function markAllNotificationsRead() {
-  await api("/notifications/api/notifications/read-all/", { method: "POST" });
-  await loadNotificationSummary();
+function closeNav() {
+  navOpen.value = false;
 }
 
 function handleDocumentClick(event) {
@@ -76,39 +82,52 @@ async function logout() {
   store.user = null;
   notifications.value = [];
   mails.value = [];
+  sentMails.value = [];
   router.push("/accounts/login/");
 }
 
 watch(() => store.user?.id, loadNotificationSummary, { immediate: true });
-watch(() => route.fullPath, closePopover);
+watch(() => route.fullPath, () => {
+  closePopover();
+  closeNav();
+});
 onMounted(() => {
   document.addEventListener("click", handleDocumentClick);
-  refreshTimer = window.setInterval(loadNotificationSummary, 15000);
+  window.addEventListener("inbox-counts-updated", loadNotificationSummary);
 });
 onBeforeUnmount(() => {
   document.removeEventListener("click", handleDocumentClick);
-  window.clearInterval(refreshTimer);
+  window.removeEventListener("inbox-counts-updated", loadNotificationSummary);
 });
 </script>
 
 <template>
   <router-view v-if="isPublic" />
   <div v-else class="app-shell">
-    <aside class="sidebar no-print">
+    <aside class="sidebar no-print" :class="{ open: navOpen }">
       <router-link class="brand" to="/">Wafer Insight</router-link>
       <nav class="nav">
         <router-link to="/">대시보드</router-link>
         <router-link to="/analyses/upload/">분석 업로드</router-link>
         <router-link to="/analyses/history/">분석 이력</router-link>
         <router-link to="/community/">커뮤니티</router-link>
-        <router-link to="/notifications/">알림/메일</router-link>
+        <router-link to="/accounts/users/">사용자</router-link>
         <router-link to="/accounts/profile/">프로필</router-link>
+        <router-link v-if="store.user?.isStaff" to="/management/lot-assignments/">LOT 배정</router-link>
         <a v-if="store.user?.isStaff" href="http://127.0.0.1:8000/admin/">관리자</a>
       </nav>
     </aside>
     <main class="content">
       <header class="topbar no-print">
+        <button class="menu-toggle" type="button" :aria-expanded="navOpen" aria-label="메뉴" @click="navOpen = !navOpen">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6h16"></path>
+            <path d="M4 12h16"></path>
+            <path d="M4 18h16"></path>
+          </svg>
+        </button>
         <div class="topbar-user">
+          <span class="user-name">{{ store.user?.displayName }}</span>
           <div class="topbar-actions">
             <div class="notification-menu">
               <button class="notification-link" type="button" aria-label="알림" @click="togglePopover('notification')">
@@ -120,17 +139,18 @@ onBeforeUnmount(() => {
               <section v-if="activePopover === 'notification'" class="notification-popover">
                 <div class="notification-popover-title">알림</div>
                 <div class="notification-preview-list">
-                  <button v-for="item in unreadNotifications" :key="item.id" class="notification-preview notification-preview-button" @click="openNotification(item)">
-                    <strong>{{ item.title }}</strong>
+                  <article v-for="item in unreadNotifications" :key="item.id" class="notification-preview">
+                    <button class="notification-preview-title" type="button" @click="openNotification(item)">
+                      {{ item.title }}
+                    </button>
                     <p>{{ dateText(item.createdAt) }}</p>
-                  </button>
+                  </article>
                   <p v-if="unreadNotifications.length === 0" class="notification-empty">
                     새로운 알림이 없습니다.
                   </p>
                 </div>
                 <div class="notification-popover-footer">
-                  <button class="mark-all-link" type="button" @click="markAllNotificationsRead">모두 읽음으로 표시</button>
-                  <router-link class="mail-link" to="/notifications/">알림/메일로 이동</router-link>
+                  <router-link class="mail-link" to="/notifications/">알림으로 이동</router-link>
                 </div>
               </section>
             </div>
@@ -156,25 +176,26 @@ onBeforeUnmount(() => {
                     :class="{ active: activeMailTab === 'favorite' }"
                     @click="activeMailTab = 'favorite'"
                   >
-                    즐겨찾기한 메일
+                    즐겨찾기
                   </button>
                 </div>
                 <div class="notification-preview-list">
-                  <button v-for="mail in visiblePopupMails" :key="mail.id" class="notification-preview notification-preview-button" @click="openMail(mail)">
-                    <strong>{{ mail.subject }}</strong>
-                    <p>{{ mail.sender }} · {{ dateText(mail.createdAt) }}</p>
-                  </button>
+                  <article v-for="mail in visiblePopupMails" :key="mail.id" class="notification-preview">
+                    <router-link class="notification-preview-title" :to="`/mails/${mail.id}/`">
+                      {{ mail.subject }}
+                    </router-link>
+                    <p>보낸 사람: {{ mail.sender }} · {{ dateText(mail.createdAt) }}</p>
+                  </article>
                   <p v-if="visiblePopupMails.length === 0" class="notification-empty">
                     표시할 메일이 없습니다.
                   </p>
                 </div>
                 <div class="notification-popover-footer">
-                  <router-link class="mail-link" to="/notifications/">알림/메일로 이동</router-link>
+                  <router-link class="mail-link" to="/mails/">메일로 이동</router-link>
                 </div>
               </section>
             </div>
           </div>
-          <span>{{ store.user?.displayName }} · {{ store.user?.department || "-" }}</span>
         </div>
         <button class="btn ghost" type="button" @click="logout">로그아웃</button>
       </header>

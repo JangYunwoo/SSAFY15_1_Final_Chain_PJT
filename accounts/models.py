@@ -22,5 +22,9 @@ class User(AbstractUser):
     USERNAME_FIELD = "username"
     REQUIRED_FIELDS = ["email"]
 
+    class Meta:
+        verbose_name = "User"
+        verbose_name_plural = "User"
+
     def display_name(self):
         return self.name or self.username
