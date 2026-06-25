@@ -124,8 +124,9 @@ def create_batch_insight(batch, user, analyses=None, is_custom=False):
     except Exception:
         # 어떤 GMS 전송 예외도 배치 결과 저장 자체를 막아서는 안 된다.
         result = fallback_insight(context)
+    created_at = timezone.localtime(batch.created_at)
     fields = {
-        "title": f"{batch.created_at:%Y-%m-%d %H:%M} 분석데이터" + (" (커스텀)" if is_custom else ""),
+        "title": f"{created_at:%Y-%m-%d %H:%M} 분석데이터" + (" (커스텀)" if is_custom else ""),
         "label_distribution": context["label_distribution"],
         "recommendation_text": result["summary"],
         "recommendations_json": result["recommendations"],

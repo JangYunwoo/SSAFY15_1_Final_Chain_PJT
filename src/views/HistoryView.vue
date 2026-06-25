@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../services/api";
 import { dateText } from "../utils/format";
@@ -15,17 +15,31 @@ const customMode = ref(false);
 const selected = ref([]);
 const loading = ref(false);
 const error = ref("");
+const favoriteOnly = ref(false);
+const HISTORY_REFRESH_MS = 5000;
+let refreshTimer = null;
+let refreshing = false;
 
 const historyItems = computed(() => [
   ...batches.value.map((item) => ({ ...item, kind: "batch" })),
   ...customAnalyses.value.map((item) => ({ ...item, kind: "custom" })),
 ].sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt)));
+const visibleHistoryItems = computed(() =>
+  favoriteOnly.value ? historyItems.value.filter((item) => item.isFavorite) : historyItems.value
+);
 
-async function load() {
+async function load({ scrollRequested = true } = {}) {
+  if (refreshing) return;
+  refreshing = true;
+  try {
   const data = await api("/analyses/api/history/");
   batches.value = data.batches;
   customAnalyses.value = data.customAnalyses;
-  await openRequestedBatch();
+    if (scrollRequested) await openRequestedBatch();
+    await refreshOpenBatchDetails();
+  } finally {
+    refreshing = false;
+  }
 }
 
 async function openRequestedBatch() {
@@ -45,6 +59,15 @@ function setBatchRef(id, element) {
 async function toggle(batch) {
   opened.value[batch.id] = !opened.value[batch.id];
   if (opened.value[batch.id] && !details.value[batch.id]) details.value[batch.id] = (await api(`/analyses/api/batches/${batch.id}/`)).batch;
+}
+
+async function refreshOpenBatchDetails() {
+  const openIds = Object.entries(opened.value)
+    .filter(([, isOpen]) => isOpen)
+    .map(([id]) => Number(id));
+  await Promise.all(openIds.map(async (id) => {
+    details.value[id] = (await api(`/analyses/api/batches/${id}/`)).batch;
+  }));
 }
 
 function toggleCustom() {
@@ -79,7 +102,29 @@ async function runCustomAnalysis() {
   }
 }
 
-onMounted(load);
+async function toggleHistoryFavorite(entry) {
+  const endpoint = entry.kind === "custom"
+    ? `/analyses/api/custom-analyses/${entry.id}/favorite/`
+    : `/analyses/api/batches/${entry.id}/favorite/`;
+  const data = await api(endpoint, { method: "POST" });
+  if (entry.kind === "custom") {
+    const target = customAnalyses.value.find((item) => item.id === entry.id);
+    if (target) target.isFavorite = data.isFavorite;
+  } else {
+    const target = batches.value.find((item) => item.id === entry.id);
+    if (target) target.isFavorite = data.isFavorite;
+  }
+}
+
+onMounted(async () => {
+  await load();
+  refreshTimer = window.setInterval(() => {
+    if (!document.hidden) load({ scrollRequested: false });
+  }, HISTORY_REFRESH_MS);
+});
+onBeforeUnmount(() => {
+  if (refreshTimer) window.clearInterval(refreshTimer);
+});
 watch(() => route.query.batch, openRequestedBatch);
 </script>
 
@@ -88,7 +133,10 @@ watch(() => route.query.batch, openRequestedBatch);
     <div class="page-head">
       <h1>분석 이력</h1>
       <div class="actions">
-        <button v-if="!customMode" class="btn primary" @click="toggleCustom">커스텀</button>
+        <button type="button" :class="['btn', favoriteOnly ? 'primary' : 'ghost']" @click="favoriteOnly = !favoriteOnly">
+          {{ favoriteOnly ? "전체 보기" : "즐겨찾기" }}
+        </button>
+        <button v-if="!customMode" class="btn primary" @click="toggleCustom">커스텀 분석</button>
         <template v-else>
           <button class="btn ghost" @click="toggleCustom">취소</button>
           <button class="btn primary" :disabled="!selected.length || loading" @click="runCustomAnalysis">{{ loading ? '분석 중…' : `분석 (${selected.length})` }}</button>
@@ -99,10 +147,18 @@ watch(() => route.query.batch, openRequestedBatch);
     <p v-if="error" class="error">{{ error }}</p>
 
     <section class="batch-list">
-      <article v-for="entry in historyItems" :key="`${entry.kind}-${entry.id}`" :ref="(element) => entry.kind === 'batch' && setBatchRef(entry.id, element)" class="batch-card">
+      <article v-for="entry in visibleHistoryItems" :key="`${entry.kind}-${entry.id}`" :ref="(element) => entry.kind === 'batch' && setBatchRef(entry.id, element)" class="batch-card">
         <template v-if="entry.kind === 'custom'">
           <div class="batch-row">
-            <div>
+            <button
+              type="button"
+              :class="['star-button', 'history-star', { active: entry.isFavorite }]"
+              :aria-label="entry.isFavorite ? '즐겨찾기 해제' : '즐겨찾기'"
+              @click.stop="toggleHistoryFavorite(entry)"
+            >
+              {{ entry.isFavorite ? "★" : "☆" }}
+            </button>
+            <div class="batch-row-main">
               <strong>{{ dateText(entry.createdAt) }} 커스텀 분석데이터</strong>
               <span class="muted">커스텀 선택 · {{ entry.selectedWafers.length }}장 · CSV {{ batchCount(entry) }}개</span>
             </div>
@@ -131,7 +187,15 @@ watch(() => route.query.batch, openRequestedBatch);
 
         <template v-else>
           <div class="batch-row">
-            <div>
+            <button
+              type="button"
+              :class="['star-button', 'history-star', { active: entry.isFavorite }]"
+              :aria-label="entry.isFavorite ? '즐겨찾기 해제' : '즐겨찾기'"
+              @click.stop="toggleHistoryFavorite(entry)"
+            >
+              {{ entry.isFavorite ? "★" : "☆" }}
+            </button>
+            <div class="batch-row-main">
               <strong>{{ dateText(entry.createdAt) }} 분석데이터</strong>
               <span class="muted">{{ entry.fileName }} · {{ entry.totalWafers }}장 · LOT {{ entry.lot.lotId }}</span>
             </div>
@@ -162,7 +226,9 @@ watch(() => route.query.batch, openRequestedBatch);
           </div>
         </template>
       </article>
-      <div v-if="!historyItems.length" class="empty panel">분석 이력이 없습니다.</div>
+      <div v-if="!visibleHistoryItems.length" class="empty panel">
+        {{ favoriteOnly ? "즐겨찾기한 분석 이력이 없습니다." : "분석 이력이 없습니다." }}
+      </div>
     </section>
   </div>
 </template>

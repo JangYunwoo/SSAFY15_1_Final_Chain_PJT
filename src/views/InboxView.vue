@@ -1,8 +1,9 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../services/api";
 import { dateText } from "../utils/format";
+import { store } from "../services/store";
 
 const route = useRoute();
 const notifications = ref([]);
@@ -17,6 +18,10 @@ const sentNotice = ref("");
 const usersError = ref("");
 const usersLoaded = ref(false);
 const activeMailboxTab = ref("received");
+const receiverQuery = ref("");
+const INBOX_REFRESH_MS = 5000;
+let refreshTimer = null;
+let refreshing = false;
 const form = reactive({
   receiverId: "",
   subject: "",
@@ -32,8 +37,25 @@ const visibleMails = computed(() => {
   return mails.value;
 });
 const pageTitle = computed(() => (isMailView.value ? "메일" : "알림"));
+const selectedReceiver = computed(() =>
+  users.value.find((user) => Number(user.id) === Number(form.receiverId))
+);
+const filteredRecipients = computed(() => {
+  const query = receiverQuery.value.trim().toLowerCase();
+  if (!query) return [];
+  return users.value
+    .filter((user) =>
+      user.id !== store.user?.id && [user.displayName, user.email, user.department]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(query))
+    )
+    .slice(0, 8);
+});
 
 async function loadInbox() {
+  if (refreshing) return;
+  refreshing = true;
+  try {
   const data = await api("/notifications/api/");
   notifications.value = data.notifications;
   mails.value = data.mails;
@@ -42,6 +64,9 @@ async function loadInbox() {
   if (data.users) {
     users.value = data.users;
     usersLoaded.value = true;
+  }
+  } finally {
+    refreshing = false;
   }
 }
 
@@ -61,7 +86,18 @@ function resetForm() {
   form.subject = "";
   form.body = "";
   form.reportId = "";
+  receiverQuery.value = "";
   error.value = "";
+}
+
+function selectReceiver(user) {
+  form.receiverId = user.id;
+  receiverQuery.value = user.displayName;
+}
+
+function clearReceiver() {
+  form.receiverId = "";
+  receiverQuery.value = "";
 }
 
 async function toggleComposer() {
@@ -108,6 +144,12 @@ async function toggleFavorite(mail) {
 onMounted(async () => {
   await loadInbox();
   if (!usersLoaded.value) await loadUsers();
+  refreshTimer = window.setInterval(() => {
+    if (!document.hidden) loadInbox();
+  }, INBOX_REFRESH_MS);
+});
+onBeforeUnmount(() => {
+  if (refreshTimer) window.clearInterval(refreshTimer);
 });
 </script>
 
@@ -154,12 +196,38 @@ onMounted(async () => {
         <form v-if="showComposer" class="mail-form" @submit.prevent="sendMail">
           <div class="field">
             <label>받는 사람</label>
-            <select v-model="form.receiverId" required>
-              <option value="">받는 사람 선택</option>
-              <option v-for="user in users" :key="user.id" :value="user.id">
-                {{ user.displayName }} · {{ user.email }}
-              </option>
-            </select>
+            <div class="recipient-search">
+              <input
+                v-model="receiverQuery"
+                class="input"
+                type="text"
+                placeholder="받으실 분의 이름, 이메일, 부서를 입력하세요"
+                autocomplete="off"
+                @input="form.receiverId = ''"
+              >
+              <div v-if="selectedReceiver" class="selected-recipient">
+                <span>
+                  <strong>{{ selectedReceiver.displayName }}</strong>
+                  <em>{{ selectedReceiver.department || "부서 미입력" }} · {{ selectedReceiver.email }}</em>
+                </span>
+                <button type="button" class="text-button" @click="clearReceiver">변경</button>
+              </div>
+              <div v-else-if="receiverQuery.trim()" class="recipient-results">
+                <button
+                  v-for="user in filteredRecipients"
+                  :key="user.id"
+                  type="button"
+                  class="recipient-option"
+                  @click="selectReceiver(user)"
+                >
+                  <strong>{{ user.displayName }}</strong>
+                  <span>{{ user.department || "부서 미입력" }} · {{ user.email }}</span>
+                </button>
+                <p v-if="filteredRecipients.length === 0" class="recipient-empty">
+                  일치하는 사용자가 없습니다.
+                </p>
+              </div>
+            </div>
           </div>
           <div v-if="usersError" class="error">{{ usersError }}</div>
           <div v-else-if="usersLoaded && users.length === 0" class="empty compact">
@@ -185,7 +253,7 @@ onMounted(async () => {
           </div>
           <div v-if="error" class="error">{{ error }}</div>
           <div class="actions">
-            <button class="btn primary" type="submit" :disabled="sending || users.length === 0">
+            <button class="btn primary" type="submit" :disabled="sending || users.length === 0 || !form.receiverId">
               {{ sending ? "보내는 중" : "보내기" }}
             </button>
             <button class="btn ghost" type="button" @click="toggleComposer">취소</button>

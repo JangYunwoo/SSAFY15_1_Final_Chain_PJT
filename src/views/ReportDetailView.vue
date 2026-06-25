@@ -8,6 +8,7 @@ const route = useRoute();
 const router = useRouter();
 const report = ref(null);
 const error = ref("");
+const sourceOpen = ref(true);
 
 onMounted(async () => {
   try {
@@ -33,6 +34,32 @@ onMounted(async () => {
       <p class="muted">
         작성자: {{ report.author }} · {{ dateText(report.createdAt) }}
       </p>
+      <section v-if="report.sourceAnalysis" class="batch-card">
+        <div class="batch-row">
+          <div>
+            <strong>{{ report.sourceAnalysis.title }}</strong>
+            <span class="muted">{{ report.sourceAnalysis.meta }}</span>
+          </div>
+          <button
+            :class="['fold-button', { expanded: sourceOpen }]"
+            :aria-label="sourceOpen ? '접기' : '펼치기'"
+            @click="sourceOpen = !sourceOpen"
+          ></button>
+        </div>
+        <div v-if="sourceOpen" class="batch-content">
+          <div class="wafer-grid">
+            <article v-for="item in report.sourceAnalysis.wafers" :key="item.id" class="wafer-card">
+              <img v-if="item.waferImage" :src="item.waferImage" :alt="item.waferId">
+              <div>
+                <strong>{{ item.waferId || item.analysisCode }}</strong>
+                <span :class="['badge', item.isNormal ? 'ok' : 'warn']">
+                  {{ item.isNormal ? 'Normal' : (item.predictedLabel || '-') }}
+                </span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
       <details open>
         <summary>AI 분석 결과</summary>
         <pre class="summary">{{ report.aiBody || "AI 분석 결과가 없습니다." }}</pre>

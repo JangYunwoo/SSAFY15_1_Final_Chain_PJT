@@ -2,6 +2,19 @@ from django.conf import settings
 from django.db import models
 
 
+class Line(models.Model):
+    line_id = models.CharField(max_length=80, unique=True)
+    name = models.CharField(max_length=120, blank=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["line_id"]
+
+    def __str__(self):
+        return self.name or self.line_id
+
+
 class Lot(models.Model):
     STATUS_READY = "ready"
     STATUS_RUNNING = "running"
@@ -15,6 +28,7 @@ class Lot(models.Model):
     ]
 
     lot_id = models.CharField(max_length=80, unique=True)
+    line = models.ForeignKey(Line, on_delete=models.PROTECT, related_name="lots", blank=True, null=True)
     product_code = models.CharField(max_length=80, blank=True)
     process = models.CharField(max_length=50, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_READY)
@@ -57,6 +71,34 @@ class LotAssignment(models.Model):
         return f"{self.lot.lot_id} - {self.user}"
 
 
+class LineAssignment(models.Model):
+    ROLE_OWNER = "owner"
+    ROLE_REVIEWER = "reviewer"
+    ROLE_CHOICES = [
+        (ROLE_OWNER, "담당자"),
+        (ROLE_REVIEWER, "책임자"),
+    ]
+
+    line = models.ForeignKey(Line, on_delete=models.CASCADE, related_name="assignments")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="line_assignments")
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="created_line_assignments",
+        blank=True,
+        null=True,
+    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_OWNER)
+    assigned_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("line", "user")
+        ordering = ["line__line_id", "user__username"]
+
+    def __str__(self):
+        return f"{self.line} - {self.user}"
+
+
 class AnalysisBatch(models.Model):
     STATUS_PENDING = "pending"
     STATUS_DONE = "done"
@@ -74,6 +116,7 @@ class AnalysisBatch(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING)
     total_wafers = models.PositiveIntegerField(default=0)
     failed_message = models.TextField(blank=True)
+    favorited_by = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="favorite_analysis_batches", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -200,6 +243,7 @@ class CustomAnalysis(models.Model):
     recommendation_text = models.TextField(blank=True)
     recommendations_json = models.JSONField(default=list)
     report_body = models.TextField(blank=True)
+    favorited_by = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="favorite_custom_analyses", blank=True)
     is_fallback = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

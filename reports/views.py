@@ -1,5 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from api_utils import api_error, api_ok, form_errors, json_body, serialize_datetime
@@ -37,6 +38,49 @@ def custom_body(custom):
     return custom.report_body or "AI 분석 결과가 아직 없습니다."
 
 
+def serialize_source_wafer(analysis):
+    effective_yield_rate = analysis.effective_yield_rate
+    is_normal = effective_yield_rate is not None and effective_yield_rate >= 90
+    return {
+        "id": analysis.id,
+        "analysisCode": analysis.analysis_code,
+        "waferId": analysis.wafer_id,
+        "predictedLabel": analysis.predicted_label,
+        "yieldRate": effective_yield_rate,
+        "isNormal": is_normal,
+        "waferImage": analysis.wafer_image.url if analysis.wafer_image else "",
+    }
+
+
+def serialize_report_source(report):
+    if report.batch_id and report.batch:
+        batch = report.batch
+        created_at = timezone.localtime(batch.created_at)
+        return {
+            "title": f"{created_at:%Y-%m-%d %H:%M} 분석데이터",
+            "meta": f"{batch.uploaded_file.name.rsplit('/', 1)[-1]} · {batch.total_wafers}장 · LOT {batch.lot.lot_id}",
+            "wafers": [serialize_source_wafer(item) for item in batch.wafer_analyses.all()],
+        }
+    if report.custom_analysis_id and report.custom_analysis:
+        custom = report.custom_analysis
+        created_at = timezone.localtime(custom.created_at)
+        wafers = list(custom.analyses.all())
+        return {
+            "title": f"{created_at:%Y-%m-%d %H:%M} 커스텀 분석데이터",
+            "meta": f"커스텀 선택 · {len(wafers)}장",
+            "wafers": [serialize_source_wafer(item) for item in wafers],
+        }
+    if report.analysis_id and report.analysis:
+        analysis = report.analysis
+        created_at = timezone.localtime(analysis.created_at)
+        return {
+            "title": f"{created_at:%Y-%m-%d %H:%M} 분석데이터",
+            "meta": f"웨이퍼 {analysis.wafer_id or analysis.analysis_code} · LOT {analysis.lot.lot_id if analysis.lot_id else '-'}",
+            "wafers": [serialize_source_wafer(analysis)],
+        }
+    return None
+
+
 def serialize_report(report):
     source_type = "analysis" if report.analysis_id else "batch" if report.batch_id else "custom"
     source_id = report.analysis_id or report.batch_id or report.custom_analysis_id
@@ -51,6 +95,7 @@ def serialize_report(report):
         "aiBody": report.ai_body,
         "body": report.body,
         "isSharedToCommunity": report.is_shared_to_community,
+        "sourceAnalysis": serialize_report_source(report),
         "createdAt": serialize_datetime(report.created_at),
         "updatedAt": serialize_datetime(report.updated_at),
     }
@@ -98,7 +143,13 @@ def api_report_for_custom(request, custom_pk):
 
 @login_required
 def api_detail(request, pk):
-    report = get_object_or_404(Report.objects.select_related("analysis", "batch", "custom_analysis", "author"), pk=pk)
+    report = get_object_or_404(
+        Report.objects.select_related("analysis__lot", "batch__lot", "custom_analysis", "author").prefetch_related(
+            "batch__wafer_analyses",
+            "custom_analysis__analyses__lot",
+        ),
+        pk=pk,
+    )
     has_mail_access = Mail.objects.filter(report=report).filter(sender=request.user).exists() or Mail.objects.filter(report=report).filter(receiver=request.user).exists()
     if report.author_id != request.user.id and not request.user.is_staff and not has_mail_access:
         return api_error("접근할 수 없는 보고서입니다.", status=404)

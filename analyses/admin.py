@@ -1,10 +1,10 @@
 from django.contrib import admin
 
-from .models import AnalysisBatch, Lot, LotAssignment, ModelVersion, ProcessRecommendation, WaferAnalysis, WaferLabel
+from .models import AnalysisBatch, Line, LineAssignment, Lot, ModelVersion, ProcessRecommendation, WaferAnalysis, WaferLabel
 
 
-class LotAssignmentInline(admin.TabularInline):
-    model = LotAssignment
+class LineAssignmentInline(admin.TabularInline):
+    model = LineAssignment
     fields = ("user", "role", "assigned_by", "assigned_at")
     readonly_fields = ("assigned_by", "assigned_at")
     extra = 0
@@ -25,20 +25,30 @@ class WaferAnalysisAdmin(admin.ModelAdmin):
 
 @admin.register(Lot)
 class LotAdmin(admin.ModelAdmin):
-    list_display = ("lot_id", "product_code", "process", "status", "assigned_users", "started_at", "due_at")
-    list_filter = ("status", "process")
-    search_fields = ("lot_id", "product_code", "assignments__user__username", "assignments__user__name")
-    inlines = [LotAssignmentInline]
+    list_display = ("lot_id", "line", "product_code", "process", "status", "started_at", "due_at")
+    list_filter = ("status", "process", "line")
+    search_fields = ("lot_id", "product_code", "line__line_id", "line__name")
+
+
+@admin.register(Line)
+class LineAdmin(admin.ModelAdmin):
+    list_display = ("line_id", "name", "assigned_users", "lot_count", "created_at")
+    search_fields = ("line_id", "name", "assignments__user__username", "assignments__user__name")
+    inlines = [LineAssignmentInline]
 
     def assigned_users(self, obj):
         users = [assignment.user.display_name() for assignment in obj.assignments.select_related("user")]
         return ", ".join(users) if users else "-"
-    assigned_users.short_description = "Assigned users"
+    assigned_users.short_description = "Assigned line users"
+
+    def lot_count(self, obj):
+        return obj.lots.count()
+    lot_count.short_description = "LOT count"
 
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
         for instance in instances:
-            if isinstance(instance, LotAssignment) and instance.assigned_by_id is None:
+            if isinstance(instance, LineAssignment) and instance.assigned_by_id is None:
                 instance.assigned_by = request.user
             instance.save()
         for obj in formset.deleted_objects:
@@ -53,11 +63,11 @@ class AnalysisBatchAdmin(admin.ModelAdmin):
     search_fields = ("batch_code", "lot__lot_id", "created_by__username")
 
 
-@admin.register(LotAssignment)
-class LotAssignmentAdmin(admin.ModelAdmin):
-    list_display = ("lot", "user", "role", "assigned_by", "assigned_at")
-    list_filter = ("role", "assigned_at", "lot")
-    search_fields = ("lot__lot_id", "user__username", "user__name", "assigned_by__username", "assigned_by__name")
+@admin.register(LineAssignment)
+class LineAssignmentAdmin(admin.ModelAdmin):
+    list_display = ("line", "user", "role", "assigned_by", "assigned_at")
+    list_filter = ("role", "assigned_at", "line")
+    search_fields = ("line__line_id", "line__name", "user__username", "user__name", "assigned_by__username", "assigned_by__name")
     readonly_fields = ("assigned_at",)
 
     def save_model(self, request, obj, form, change):

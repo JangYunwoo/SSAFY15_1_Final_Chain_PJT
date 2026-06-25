@@ -12,7 +12,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from api_utils import api_error, api_ok, form_errors, json_body, serialize_datetime, serialize_decimal
 
 from .forms import BatchUploadForm
-from .models import AnalysisBatch, CustomAnalysis, Lot, LotAssignment, WaferAnalysis, WaferLabel
+from .models import AnalysisBatch, CustomAnalysis, Line, LineAssignment, Lot, WaferAnalysis, WaferLabel
 from .services.batch_insights import create_batch_insight, create_custom_analysis
 
 
@@ -25,20 +25,21 @@ def accessible_batches(user):
     batches = AnalysisBatch.objects.select_related("lot", "created_by")
     if user.is_staff:
         return batches
-    return batches.filter(lot__assignments__user=user).distinct()
+    return batches.filter(lot__line__assignments__user=user).distinct()
 
 
 def accessible_analyses(user):
     analyses = WaferAnalysis.objects.select_related("lot", "batch", "user")
     if user.is_staff:
         return analyses
-    return analyses.filter(lot__assignments__user=user).distinct()
+    return analyses.filter(lot__line__assignments__user=user).distinct()
 
 
 def serialize_lot(lot):
     return {
         "id": lot.id,
         "lotId": lot.lot_id,
+        "line": serialize_line(lot.line) if lot.line_id else None,
         "productCode": lot.product_code,
         "process": lot.process,
         "status": lot.status,
@@ -47,11 +48,21 @@ def serialize_lot(lot):
     }
 
 
-def serialize_lot_assignment(assignment):
+def serialize_line(line):
+    return {
+        "id": line.id,
+        "lineId": line.line_id,
+        "name": line.name,
+        "displayName": line.name or line.line_id,
+        "description": line.description,
+    }
+
+
+def serialize_line_assignment(assignment):
     return {
         "id": assignment.id,
-        "lotId": assignment.lot_id,
-        "lotName": assignment.lot.lot_id,
+        "lineId": assignment.line_id,
+        "lineName": assignment.line.name or assignment.line.line_id,
         "userId": assignment.user_id,
         "userName": assignment.user.display_name(),
         "userEmail": assignment.user.email,
@@ -98,7 +109,7 @@ def serialize_prediction_candidates(analysis):
     ]
 
 
-def serialize_batch(batch, include_analyses=False):
+def serialize_batch(batch, include_analyses=False, user=None):
     data = {
         "id": batch.id,
         "batchCode": batch.batch_code,
@@ -108,6 +119,7 @@ def serialize_batch(batch, include_analyses=False):
         "totalWafers": batch.total_wafers,
         "lowConfidenceCount": batch.low_confidence_count,
         "failedMessage": batch.failed_message,
+        "isFavorite": bool(user and batch.favorited_by.filter(pk=user.pk).exists()),
         "createdAt": serialize_datetime(batch.created_at),
     }
     if include_analyses:
@@ -167,10 +179,11 @@ def serialize_insight(insight):
     }
 
 
-def serialize_custom_analysis(custom):
+def serialize_custom_analysis(custom, user=None):
     return {
         "id": custom.id,
         "title": custom.title,
+        "isFavorite": bool(user and custom.favorited_by.filter(pk=user.pk).exists()),
         "isFallback": custom.is_fallback,
         "labelDistribution": custom.label_distribution,
         "summary": custom.recommendation_text,
@@ -183,7 +196,7 @@ def serialize_custom_analysis(custom):
 
 @login_required
 def api_lots(request):
-    lots = Lot.objects.all() if request.user.is_staff else Lot.objects.filter(assignments__user=request.user).distinct()
+    lots = Lot.objects.all() if request.user.is_staff else Lot.objects.filter(line__assignments__user=request.user).distinct()
     lots = lots.order_by("lot_id")
     return api_ok({"lots": [serialize_lot(lot) for lot in lots]})
 
@@ -192,15 +205,15 @@ def api_lots(request):
 @require_http_methods(["GET", "POST"])
 def api_lot_assignments(request):
     if not request.user.is_staff:
-        return api_error("관리자만 LOT을 배정할 수 있습니다.", status=403)
+        return api_error("관리자만 Line을 배정할 수 있습니다.", status=403)
 
     User = get_user_model()
     if request.method == "GET":
-        lots = Lot.objects.order_by("lot_id")
+        lines = Line.objects.order_by("line_id")
         users = User.objects.filter(is_active=True, is_staff=False).order_by("name", "username")
-        assignments = LotAssignment.objects.select_related("lot", "user", "assigned_by")
+        assignments = LineAssignment.objects.select_related("line", "user", "assigned_by")
         return api_ok({
-            "lots": [serialize_lot(lot) for lot in lots],
+            "lines": [serialize_line(line) for line in lines],
             "users": [
                 {
                     "id": user.id,
@@ -210,20 +223,20 @@ def api_lot_assignments(request):
                 }
                 for user in users
             ],
-            "assignments": [serialize_lot_assignment(item) for item in assignments],
+            "assignments": [serialize_line_assignment(item) for item in assignments],
         })
 
     data = json_body(request)
-    lot_id = data.get("lotId")
+    line_id = data.get("lineId") or data.get("lotId")
     user_id = data.get("userId")
-    role = data.get("role") or LotAssignment.ROLE_OWNER
-    if role not in dict(LotAssignment.ROLE_CHOICES):
+    role = data.get("role") or LineAssignment.ROLE_OWNER
+    if role not in dict(LineAssignment.ROLE_CHOICES):
         return api_error("배정 역할을 확인해주세요.")
 
-    lot = get_object_or_404(Lot, pk=lot_id)
+    line = get_object_or_404(Line, pk=line_id)
     user = get_object_or_404(User.objects.filter(is_active=True, is_staff=False), pk=user_id)
-    assignment, created = LotAssignment.objects.get_or_create(
-        lot=lot,
+    assignment, created = LineAssignment.objects.get_or_create(
+        line=line,
         user=user,
         defaults={"role": role, "assigned_by": request.user},
     )
@@ -232,16 +245,16 @@ def api_lot_assignments(request):
         if assignment.assigned_by_id is None:
             assignment.assigned_by = request.user
         assignment.save(update_fields=["role", "assigned_by"])
-    return api_ok({"assignment": serialize_lot_assignment(assignment), "created": created}, status=201 if created else 200)
+    return api_ok({"assignment": serialize_line_assignment(assignment), "created": created}, status=201 if created else 200)
 
 
 @login_required
 @require_http_methods(["DELETE"])
 def api_lot_assignment_detail(request, pk):
     if not request.user.is_staff:
-        return api_error("관리자만 LOT 배정을 해제할 수 있습니다.", status=403)
+        return api_error("관리자만 Line 배정을 해제할 수 있습니다.", status=403)
 
-    assignment = get_object_or_404(LotAssignment, pk=pk)
+    assignment = get_object_or_404(LineAssignment, pk=pk)
     assignment.delete()
     return api_ok()
 
@@ -289,8 +302,8 @@ def api_history(request):
     return api_ok(
         {
             "analyses": [serialize_analysis(item) for item in analyses],
-            "batches": [serialize_batch(item) for item in batches],
-            "customAnalyses": [serialize_custom_analysis(item) for item in CustomAnalysis.objects.filter(user=request.user)],
+            "batches": [serialize_batch(item, user=request.user) for item in batches],
+            "customAnalyses": [serialize_custom_analysis(item, user=request.user) for item in CustomAnalysis.objects.filter(user=request.user)],
             "labels": labels,
         }
     )
@@ -299,7 +312,7 @@ def api_history(request):
 @login_required
 def api_batch_detail(request, pk):
     batch = get_object_or_404(accessible_batches(request.user), pk=pk)
-    data = serialize_batch(batch, include_analyses=True)
+    data = serialize_batch(batch, include_analyses=True, user=request.user)
     # 이력 폼에는 하나만 보이되, 실제 GMS 응답이 있으면 fallback보다 우선한다.
     latest_insight = batch.insights.filter(is_fallback=False).order_by("-created_at").first()
     latest_insight = latest_insight or batch.insights.order_by("-created_at").first()
@@ -338,7 +351,33 @@ def api_create_custom_analysis(request):
     if analyses.count() != len(set(selected_ids)):
         return api_error("선택한 웨이퍼 중 접근할 수 없는 항목이 있습니다.")
     custom = create_custom_analysis(request.user, analyses)
-    return api_ok({"customAnalysis": serialize_custom_analysis(custom)}, status=201)
+    return api_ok({"customAnalysis": serialize_custom_analysis(custom, user=request.user)}, status=201)
+
+
+@login_required
+@require_POST
+def api_toggle_batch_favorite(request, pk):
+    batch = get_object_or_404(accessible_batches(request.user), pk=pk)
+    if batch.favorited_by.filter(pk=request.user.pk).exists():
+        batch.favorited_by.remove(request.user)
+        is_favorite = False
+    else:
+        batch.favorited_by.add(request.user)
+        is_favorite = True
+    return api_ok({"isFavorite": is_favorite})
+
+
+@login_required
+@require_POST
+def api_toggle_custom_analysis_favorite(request, pk):
+    custom = get_object_or_404(CustomAnalysis.objects.filter(user=request.user), pk=pk)
+    if custom.favorited_by.filter(pk=request.user.pk).exists():
+        custom.favorited_by.remove(request.user)
+        is_favorite = False
+    else:
+        custom.favorited_by.add(request.user)
+        is_favorite = True
+    return api_ok({"isFavorite": is_favorite})
 
 
 @login_required

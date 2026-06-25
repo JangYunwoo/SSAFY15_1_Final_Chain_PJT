@@ -4,7 +4,7 @@ from django.shortcuts import render
 
 from api_utils import api_ok
 from analyses.views import serialize_analysis, serialize_batch
-from analyses.models import AnalysisBatch, Lot, WaferAnalysis
+from analyses.models import AnalysisBatch, Line, Lot, WaferAnalysis
 
 
 @login_required
@@ -18,9 +18,11 @@ def api_home(request):
         analyses = WaferAnalysis.objects.select_related("lot", "batch", "user")
         batches = AnalysisBatch.objects.select_related("lot")[:5]
         lots = Lot.objects.all()
+        lines = Line.objects.all()
         batch_count = AnalysisBatch.objects.count()
     else:
-        lots = Lot.objects.filter(assignments__user=request.user).distinct()
+        lines = Line.objects.filter(assignments__user=request.user).distinct()
+        lots = Lot.objects.filter(line__in=lines).distinct()
         analyses = WaferAnalysis.objects.filter(lot__in=lots).select_related("lot", "batch", "user")
         batches = AnalysisBatch.objects.filter(lot__in=lots).select_related("lot")[:5]
         batch_count = AnalysisBatch.objects.filter(lot__in=lots).count()
@@ -39,6 +41,8 @@ def api_home(request):
     top_label = analyses.values("predicted_label").annotate(total=Count("id")).order_by("-total").first()
     return api_ok({
         "metrics": {
+            "lineCount": lines.count(),
+            "lineIds": [] if request.user.is_staff else list(lines.order_by("line_id").values_list("line_id", flat=True)),
             "lotCount": lots.count(),
             "lotIds": [] if request.user.is_staff else list(lots.order_by("lot_id").values_list("lot_id", flat=True)),
             "batchCount": batch_count,

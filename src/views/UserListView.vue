@@ -18,7 +18,7 @@ const filteredUsers = computed(() => {
   const text = keyword.value.trim().toLowerCase();
   if (!text) return users.value;
   return users.value.filter((user) =>
-    [user.displayName, user.email, user.department, user.title, user.lotRole]
+    [user.displayName, user.email, user.department, user.title, user.lineRole]
       .filter(Boolean)
       .some((value) => value.toLowerCase().includes(text))
   );
@@ -27,7 +27,7 @@ const filteredUsers = computed(() => {
 const usersByRole = computed(() => {
   const grouped = Object.fromEntries(roleColumns.map((column) => [column.key, []]));
   for (const user of filteredUsers.value) {
-    const key = user.lotRoleKey || (user.isStaff ? "admin" : "unassigned");
+    const key = user.lineRoleKey || (user.isStaff ? "admin" : "unassigned");
     if (!grouped[key]) grouped.unassigned.push(user);
     else grouped[key].push(user);
   }
@@ -80,8 +80,8 @@ onMounted(async () => {
             <span class="user-card-body">
               <span class="user-card-title">
                 <strong>{{ user.displayName }}</strong>
-                <span :class="['role-badge', user.lotRoleKey || (user.isStaff ? 'admin' : 'unassigned')]">
-                  {{ user.lotRole || (user.isStaff ? "관리자" : "미정") }}
+                <span :class="['role-badge', user.lineRoleKey || (user.isStaff ? 'admin' : 'unassigned')]">
+                  {{ user.lineRole || (user.isStaff ? "관리자" : "미정") }}
                 </span>
                 <span v-if="user.id === store.user?.id" class="self-badge">나</span>
               </span>

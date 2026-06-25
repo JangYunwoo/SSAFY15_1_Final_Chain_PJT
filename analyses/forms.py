@@ -25,6 +25,6 @@ class BatchUploadForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         if user and not user.is_staff:
-            self.fields["lot"].queryset = Lot.objects.filter(assignments__user=user).distinct()
+            self.fields["lot"].queryset = Lot.objects.filter(line__assignments__user=user).distinct()
         else:
             self.fields["lot"].queryset = Lot.objects.all()

@@ -53,7 +53,7 @@ async function submit() {
           </option>
         </select>
         <p v-if="!loadingLots && lots.length === 0" class="muted">
-          배정된 LOT이 없습니다. 관리자에게 LOT 배정을 요청해주세요.
+          배정된 Line이 없습니다. 관리자에게 Line 배정을 요청해주세요.
         </p>
       </div>
       <div class="field">

@@ -14,6 +14,8 @@ const sentMails = ref([]);
 const activePopover = ref("");
 const activeMailTab = ref("new");
 const navOpen = ref(false);
+const SUMMARY_REFRESH_MS = 5000;
+let summaryTimer = null;
 
 const unreadNotifications = computed(() => notifications.value.filter((item) => !item.isRead));
 const unreadMails = computed(() => mails.value.filter((mail) => !mail.isRead));
@@ -38,6 +40,21 @@ async function loadNotificationSummary() {
     mails.value = [];
     sentMails.value = [];
   }
+}
+
+function stopSummaryPolling() {
+  if (summaryTimer) {
+    window.clearInterval(summaryTimer);
+    summaryTimer = null;
+  }
+}
+
+function startSummaryPolling() {
+  stopSummaryPolling();
+  if (!store.user) return;
+  summaryTimer = window.setInterval(() => {
+    if (!document.hidden) loadNotificationSummary();
+  }, SUMMARY_REFRESH_MS);
 }
 
 async function togglePopover(name) {
@@ -66,6 +83,18 @@ async function openNotification(item) {
   router.push(item.targetUrl || "/notifications/");
 }
 
+async function markAllNotificationsRead() {
+  await api("/notifications/api/notifications/read-all/", { method: "POST" });
+  notifications.value = notifications.value.map((item) => ({ ...item, isRead: true }));
+  window.dispatchEvent(new Event("inbox-counts-updated"));
+}
+
+async function markAllMailsRead() {
+  await api("/notifications/api/mails/read-all/", { method: "POST" });
+  mails.value = mails.value.map((mail) => ({ ...mail, isRead: true }));
+  window.dispatchEvent(new Event("inbox-counts-updated"));
+}
+
 function closeNav() {
   navOpen.value = false;
 }
@@ -86,7 +115,10 @@ async function logout() {
   router.push("/accounts/login/");
 }
 
-watch(() => store.user?.id, loadNotificationSummary, { immediate: true });
+watch(() => store.user?.id, () => {
+  loadNotificationSummary();
+  startSummaryPolling();
+}, { immediate: true });
 watch(() => route.fullPath, () => {
   closePopover();
   closeNav();
@@ -94,10 +126,12 @@ watch(() => route.fullPath, () => {
 onMounted(() => {
   document.addEventListener("click", handleDocumentClick);
   window.addEventListener("inbox-counts-updated", loadNotificationSummary);
+  startSummaryPolling();
 });
 onBeforeUnmount(() => {
   document.removeEventListener("click", handleDocumentClick);
   window.removeEventListener("inbox-counts-updated", loadNotificationSummary);
+  stopSummaryPolling();
 });
 </script>
 
@@ -113,7 +147,7 @@ onBeforeUnmount(() => {
         <router-link to="/community/">커뮤니티</router-link>
         <router-link to="/accounts/users/">사용자</router-link>
         <router-link to="/accounts/profile/">프로필</router-link>
-        <router-link v-if="store.user?.isStaff" to="/management/lot-assignments/">LOT 배정</router-link>
+        <router-link v-if="store.user?.isStaff" to="/management/lot-assignments/">Line 배정</router-link>
         <a v-if="store.user?.isStaff" href="http://127.0.0.1:8000/admin/">관리자</a>
       </nav>
     </aside>
@@ -150,6 +184,9 @@ onBeforeUnmount(() => {
                   </p>
                 </div>
                 <div class="notification-popover-footer">
+                  <button class="mark-all-link" type="button" @click="markAllNotificationsRead">
+                    모두 읽음으로 표시
+                  </button>
                   <router-link class="mail-link" to="/notifications/">알림으로 이동</router-link>
                 </div>
               </section>
@@ -191,6 +228,9 @@ onBeforeUnmount(() => {
                   </p>
                 </div>
                 <div class="notification-popover-footer">
+                  <button class="mark-all-link" type="button" @click="markAllMailsRead">
+                    모두 읽음으로 표시
+                  </button>
                   <router-link class="mail-link" to="/mails/">메일로 이동</router-link>
                 </div>
               </section>

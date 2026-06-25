@@ -78,8 +78,8 @@ onMounted(load);
           </div>
           <div class="profile-photo-meta">
             <strong>{{ user.displayName }}</strong>
-            <span :class="['role-badge', user.lotRoleKey || (user.isStaff ? 'admin' : 'unassigned')]">
-              {{ user.lotRole || (user.isStaff ? "관리자" : "미정") }}
+            <span :class="['role-badge', user.lineRoleKey || (user.isStaff ? 'admin' : 'unassigned')]">
+              {{ user.lineRole || (user.isStaff ? "관리자" : "미정") }}
             </span>
             <p>{{ user.department || "부서 미입력" }}</p>
           </div>

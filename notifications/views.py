@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_http_methods, require_POST
 
 from api_utils import api_error, api_ok, json_body, serialize_datetime
+from analyses.models import Lot
 from reports.models import Report
 
 from .models import Mail, Notification
@@ -37,7 +38,7 @@ def can_attach_report(user, report):
     lot_ids = report_lot_ids(report)
     if not lot_ids:
         return False
-    assigned_lot_ids = set(user.lot_assignments.values_list("lot_id", flat=True))
+    assigned_lot_ids = set(Lot.objects.filter(line__assignments__user=user).values_list("id", flat=True))
     return lot_ids.issubset(assigned_lot_ids)
 
 
@@ -168,6 +169,20 @@ def api_read_notification(request, pk):
         notification.is_read = True
         notification.save(update_fields=["is_read"])
     return api_ok()
+
+
+@login_required
+@require_POST
+def api_read_all_notifications(request):
+    updated = Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+    return api_ok({"updated": updated})
+
+
+@login_required
+@require_POST
+def api_read_all_mails(request):
+    updated = Mail.objects.filter(receiver=request.user, is_read=False).update(is_read=True)
+    return api_ok({"updated": updated})
 
 
 @login_required

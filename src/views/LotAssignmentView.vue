@@ -3,29 +3,25 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { api } from "../services/api";
 import { dateText } from "../utils/format";
 
-const lots = ref([]);
+const lines = ref([]);
 const users = ref([]);
 const assignments = ref([]);
 const loading = ref(true);
 const saving = ref(false);
 const message = ref("");
 const error = ref("");
-const form = reactive({ lotId: "", userId: "", role: "owner" });
+const form = reactive({ lineId: "", userId: "", role: "owner" });
 
-const selectedLotAssignments = computed(() => {
-  if (!form.lotId) return assignments.value;
-  return assignments.value.filter((item) => item.lotId === Number(form.lotId));
+const selectedLineAssignments = computed(() => {
+  if (!form.lineId) return assignments.value;
+  return assignments.value.filter((item) => item.lineId === Number(form.lineId));
 });
 
-const selectedUserIds = computed(() => new Set(
-  assignments.value
-    .filter((item) => item.lotId === Number(form.lotId))
-    .map((item) => item.userId)
-));
+const assignedUserIds = computed(() => new Set(assignments.value.map((item) => item.userId)));
 
 const availableUsers = computed(() => {
-  if (!form.lotId) return users.value;
-  return users.value.filter((user) => !selectedUserIds.value.has(user.id) || user.id === Number(form.userId));
+  if (!form.lineId) return users.value;
+  return users.value.filter((user) => !assignedUserIds.value.has(user.id) || user.id === Number(form.userId));
 });
 
 async function load() {
@@ -33,11 +29,11 @@ async function load() {
   error.value = "";
   try {
     const data = await api("/analyses/api/lot-assignments/");
-    lots.value = data.lots;
+    lines.value = data.lines;
     users.value = data.users;
     assignments.value = data.assignments;
   } catch (requestError) {
-    error.value = requestError.message || "LOT 배정 정보를 불러오지 못했습니다.";
+    error.value = requestError.message || "Line 배정 정보를 불러오지 못했습니다.";
   } finally {
     loading.value = false;
   }
@@ -51,7 +47,7 @@ async function submit() {
     const data = await api("/analyses/api/lot-assignments/", {
       method: "POST",
       body: JSON.stringify({
-        lotId: form.lotId,
+        lineId: form.lineId,
         userId: form.userId,
         role: form.role
       })
@@ -63,24 +59,24 @@ async function submit() {
       assignments.value.unshift(data.assignment);
     }
     form.userId = "";
-    message.value = data.created ? "LOT을 배정했습니다." : "기존 배정을 업데이트했습니다.";
+    message.value = data.created ? "Line을 배정했습니다." : "기존 배정을 업데이트했습니다.";
   } catch (requestError) {
-    error.value = requestError.message || "LOT 배정에 실패했습니다.";
+    error.value = requestError.message || "Line 배정에 실패했습니다.";
   } finally {
     saving.value = false;
   }
 }
 
 async function removeAssignment(assignment) {
-  if (!window.confirm(`${assignment.userName}님의 ${assignment.lotName} 배정을 해제할까요?`)) return;
+  if (!window.confirm(`${assignment.userName}님의 ${assignment.lineName} Line 배정을 해제할까요?`)) return;
   message.value = "";
   error.value = "";
   try {
     await api(`/analyses/api/lot-assignments/${assignment.id}/`, { method: "DELETE" });
     assignments.value = assignments.value.filter((item) => item.id !== assignment.id);
-    message.value = "LOT 배정을 해제했습니다.";
+    message.value = "Line 배정을 해제했습니다.";
   } catch (requestError) {
-    error.value = requestError.message || "LOT 배정 해제에 실패했습니다.";
+    error.value = requestError.message || "Line 배정 해제에 실패했습니다.";
   }
 }
 
@@ -91,8 +87,8 @@ onMounted(load);
   <div class="page">
     <div class="page-head">
       <div>
-        <h1>LOT 배정</h1>
-        <p class="muted">관리자가 사용자에게 LOT을 배정하면 해당 사용자만 분석 결과를 확인할 수 있습니다.</p>
+        <h1>Line 배정</h1>
+        <p class="muted">관리자가 사용자에게 Line을 배정하면 해당 Line에서 발생한 LOT 분석 결과만 확인할 수 있습니다.</p>
       </div>
     </div>
 
@@ -102,17 +98,17 @@ onMounted(load);
     <section class="panel assignment-layout">
       <form class="assignment-form" @submit.prevent="submit">
         <div class="field">
-          <label>LOT</label>
-          <select v-model="form.lotId" required>
+          <label>Line</label>
+          <select v-model="form.lineId" required>
             <option value="">선택</option>
-            <option v-for="lot in lots" :key="lot.id" :value="lot.id">
-              {{ lot.lotId }} - {{ lot.process || "공정 미입력" }}
+            <option v-for="line in lines" :key="line.id" :value="line.id">
+              {{ line.displayName }}
             </option>
           </select>
         </div>
         <div class="field">
           <label>사용자</label>
-          <select v-model="form.userId" :disabled="!form.lotId" required>
+          <select v-model="form.userId" :disabled="!form.lineId" required>
             <option value="">선택</option>
             <option v-for="user in availableUsers" :key="user.id" :value="user.id">
               {{ user.displayName }} · {{ user.department || "부서 미입력" }}
@@ -126,8 +122,8 @@ onMounted(load);
             <option value="reviewer">책임자</option>
           </select>
         </div>
-        <button class="btn primary" :disabled="saving || !form.lotId || !form.userId">
-          {{ saving ? "배정 중" : "LOT 배정" }}
+        <button class="btn primary" :disabled="saving || !form.lineId || !form.userId">
+          {{ saving ? "배정 중" : "Line 배정" }}
         </button>
       </form>
 
@@ -142,7 +138,7 @@ onMounted(load);
       <table>
         <thead>
           <tr>
-            <th>LOT</th>
+            <th>Line</th>
             <th>사용자</th>
             <th>역할</th>
             <th>배정자</th>
@@ -151,8 +147,8 @@ onMounted(load);
           </tr>
         </thead>
         <tbody>
-          <tr v-for="assignment in selectedLotAssignments" :key="assignment.id">
-            <td><strong>{{ assignment.lotName }}</strong></td>
+          <tr v-for="assignment in selectedLineAssignments" :key="assignment.id">
+            <td><strong>{{ assignment.lineName }}</strong></td>
             <td>
               <strong>{{ assignment.userName }}</strong>
               <p class="muted">{{ assignment.department || "부서 미입력" }} · {{ assignment.userEmail }}</p>
@@ -166,8 +162,8 @@ onMounted(load);
               <button class="btn ghost" type="button" @click="removeAssignment(assignment)">해제</button>
             </td>
           </tr>
-          <tr v-if="!loading && selectedLotAssignments.length === 0">
-            <td colspan="6" class="empty">표시할 LOT 배정이 없습니다.</td>
+          <tr v-if="!loading && selectedLineAssignments.length === 0">
+            <td colspan="6" class="empty">표시할 Line 배정이 없습니다.</td>
           </tr>
           <tr v-if="loading">
             <td colspan="6" class="empty">불러오는 중</td>

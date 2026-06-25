@@ -1,11 +1,13 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
 
 from api_utils import api_error, api_ok, form_errors, json_body, serialize_datetime, serialize_decimal
 
 from .forms import CommentForm, PostForm
 from .models import Post
+from analyses.models import Lot
 from notifications.models import Notification
 
 
@@ -15,7 +17,7 @@ def spa(request, *args, **kwargs):
 
 
 def assigned_lot_ids(user):
-    return set(user.lot_assignments.values_list("lot_id", flat=True))
+    return set(Lot.objects.filter(line__assignments__user=user).values_list("id", flat=True))
 
 
 def post_lot_ids(post):
@@ -66,23 +68,26 @@ def serialize_shared_wafer(analysis):
 def serialize_shared_analysis(post):
     if post.batch_id:
         batch = post.batch
+        created_at = timezone.localtime(batch.created_at)
         return {
-            "title": f"{batch.created_at:%Y-%m-%d %H:%M} 분석데이터",
+            "title": f"{created_at:%Y-%m-%d %H:%M} 분석데이터",
             "meta": f"{batch.uploaded_file.name.rsplit('/', 1)[-1]} · {batch.total_wafers}장 · LOT {batch.lot.lot_id}",
             "wafers": [serialize_shared_wafer(item) for item in batch.wafer_analyses.all()],
         }
     if post.custom_analysis_id:
         custom = post.custom_analysis
+        created_at = timezone.localtime(custom.created_at)
         wafers = list(custom.analyses.all())
         return {
-            "title": f"{custom.created_at:%Y-%m-%d %H:%M} 커스텀 분석데이터",
+            "title": f"{created_at:%Y-%m-%d %H:%M} 커스텀 분석데이터",
             "meta": f"커스텀 선택 · {len(wafers)}장",
             "wafers": [serialize_shared_wafer(item) for item in wafers],
         }
     if post.analysis_id:
         analysis = post.analysis
+        created_at = timezone.localtime(analysis.created_at)
         return {
-            "title": f"{analysis.created_at:%Y-%m-%d %H:%M} 분석데이터",
+            "title": f"{created_at:%Y-%m-%d %H:%M} 분석데이터",
             "meta": f"웨이퍼 {analysis.wafer_id or analysis.analysis_code} · LOT {analysis.lot.lot_id if analysis.lot_id else '-'}",
             "wafers": [serialize_shared_wafer(analysis)],
         }

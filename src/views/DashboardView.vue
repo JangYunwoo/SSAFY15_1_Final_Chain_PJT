@@ -12,15 +12,30 @@ const data = reactive({ metrics: {}, recent: [], recentBatches: [], recentTrend:
 const opened = ref({});
 const details = ref({});
 const trendColors = ["#2563eb", "#f59e0b", "#8b5cf6", "#ef4444", "#14b8a6", "#64748b", "#ec4899", "#84cc16"];
+const DASHBOARD_REFRESH_MS = 5000;
+let refreshTimer = null;
+let refreshing = false;
 
 Highcharts3d(Highcharts);
 
 function renderTrendChart() {
   if (!trendChartEl.value || !data.recentTrend.distribution.length) return;
-  trendChart.value?.destroy();
+  const chartData = data.recentTrend.distribution.map((item, index) => ({
+    name: item.label,
+    y: item.count,
+    color: trendColors[index % trendColors.length],
+    sliced: index === 0,
+    selected: index === 0,
+  }));
+  if (trendChart.value) {
+    trendChart.value.series[0].setData(chartData, false, false, false);
+    trendChart.value.redraw(false);
+    return;
+  }
   trendChart.value = Highcharts.chart(trendChartEl.value, {
     chart: {
       type: "pie",
+      animation: false,
       backgroundColor: "transparent",
       height: 310,
       options3d: { enabled: true, alpha: 52, beta: 0 },
@@ -31,6 +46,7 @@ function renderTrendChart() {
     tooltip: { pointFormat: "<b>{point.y}개</b> · {point.percentage:.1f}%" },
     plotOptions: {
       pie: {
+        animation: false,
         depth: 38,
         size: "92%",
         innerSize: 0,
@@ -49,14 +65,9 @@ function renderTrendChart() {
     },
     series: [{
       name: "웨이퍼",
+      animation: false,
       colorByPoint: true,
-      data: data.recentTrend.distribution.map((item, index) => ({
-        name: item.label,
-        y: item.count,
-        color: trendColors[index % trendColors.length],
-        sliced: index === 0,
-        selected: index === 0,
-      })),
+      data: chartData,
     }],
   });
 }
@@ -68,14 +79,36 @@ async function toggle(batch) {
   }
 }
 
+async function loadDashboard() {
+  if (refreshing) return;
+  refreshing = true;
+  try {
+    Object.assign(data, await api("/api/dashboard/"));
+    loading.value = false;
+    const openIds = Object.entries(opened.value)
+      .filter(([, isOpen]) => isOpen)
+      .map(([id]) => Number(id));
+    await Promise.all(openIds.map(async (id) => {
+      details.value[id] = (await api(`/analyses/api/batches/${id}/`)).batch;
+    }));
+    await nextTick();
+    renderTrendChart();
+  } finally {
+    refreshing = false;
+  }
+}
+
 onMounted(async () => {
-  Object.assign(data, await api("/api/dashboard/"));
-  loading.value = false;
-  await nextTick();
-  renderTrendChart();
+  await loadDashboard();
+  refreshTimer = window.setInterval(() => {
+    if (!document.hidden) loadDashboard();
+  }, DASHBOARD_REFRESH_MS);
 });
 
-onBeforeUnmount(() => trendChart.value?.destroy());
+onBeforeUnmount(() => {
+  if (refreshTimer) window.clearInterval(refreshTimer);
+  trendChart.value?.destroy();
+});
 </script>
 
 <template>
@@ -89,7 +122,7 @@ onBeforeUnmount(() => trendChart.value?.destroy());
 
     <template v-else>
       <div class="grid cols-4">
-        <div class="card metric"><span>LOT</span><strong class="lot-metric">{{ data.metrics.lotIds?.join(' · ') || '-' }}</strong></div>
+        <div class="card metric"><span>LINE</span><strong class="lot-metric">{{ data.metrics.lineIds?.join(' · ') || '-' }}</strong></div>
         <div class="card metric"><span>배치</span><strong>{{ data.metrics.batchCount }}</strong></div>
         <div class="card metric"><span>분석</span><strong>{{ data.metrics.analysisCount }}</strong></div>
         <div class="card metric"><span>최근 100개 정상 비율</span><strong>{{ data.metrics.recentNormalRate }}%</strong></div>

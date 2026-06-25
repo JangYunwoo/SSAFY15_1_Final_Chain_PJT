@@ -10,7 +10,7 @@ from .forms import ProfileForm, UserRegisterForm
 from .models import User
 
 
-LOT_ROLE_LABELS = {
+LINE_ROLE_LABELS = {
     "owner": "담당자",
     "reviewer": "책임자",
 }
@@ -25,8 +25,8 @@ def lot_assignment_role_label(user):
         return "관리자"
 
     roles = [
-        LOT_ROLE_LABELS.get(role, role)
-        for role in user.lot_assignments.order_by("role").values_list("role", flat=True).distinct()
+        LINE_ROLE_LABELS.get(role, role)
+        for role in user.line_assignments.order_by("role").values_list("role", flat=True).distinct()
     ]
     return ", ".join(roles) if roles else "미정"
 
@@ -34,7 +34,7 @@ def lot_assignment_role_label(user):
 def lot_assignment_role_key(user):
     if user.is_staff:
         return "admin"
-    roles = set(user.lot_assignments.values_list("role", flat=True))
+    roles = set(user.line_assignments.values_list("role", flat=True))
     if "reviewer" in roles:
         return "responsible"
     if "owner" in roles:
@@ -63,6 +63,8 @@ class WaferLogoutView(LogoutView):
 
 def serialize_user(user):
     profile_image_url = user.profile_image.url if user.profile_image else ""
+    line_role = lot_assignment_role_label(user)
+    line_role_key = lot_assignment_role_key(user)
     return {
         "id": user.id,
         "username": user.username,
@@ -75,8 +77,10 @@ def serialize_user(user):
         "profileImageUrl": profile_image_url,
         "role": user.role,
         "isStaff": user.is_staff,
-        "lotRole": lot_assignment_role_label(user),
-        "lotRoleKey": lot_assignment_role_key(user),
+        "lineRole": line_role,
+        "lineRoleKey": line_role_key,
+        "lotRole": line_role,
+        "lotRoleKey": line_role_key,
     }
 
 
@@ -146,6 +150,8 @@ def api_users(request):
                 "profileImageUrl": user.profile_image.url if user.profile_image else "",
                 "role": user.role,
                 "isStaff": user.is_staff,
+                "lineRole": lot_assignment_role_label(user),
+                "lineRoleKey": lot_assignment_role_key(user),
                 "lotRole": lot_assignment_role_label(user),
                 "lotRoleKey": lot_assignment_role_key(user),
             }
@@ -172,6 +178,8 @@ def api_user_detail(request, pk):
             "profileImageUrl": user.profile_image.url if user.profile_image else "",
             "role": user.role,
             "isStaff": user.is_staff,
+            "lineRole": lot_assignment_role_label(user),
+            "lineRoleKey": lot_assignment_role_key(user),
             "lotRole": lot_assignment_role_label(user),
             "lotRoleKey": lot_assignment_role_key(user),
         }
