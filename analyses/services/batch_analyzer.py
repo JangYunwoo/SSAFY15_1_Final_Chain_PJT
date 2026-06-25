@@ -6,7 +6,7 @@ from django.core.files import File
 from django.db import transaction
 from django.utils import timezone
 
-from analyses.models import AnalysisBatch, Lot, ProcessRecommendation, WaferAnalysis
+from analyses.models import AnalysisBatch, LineAssignment, Lot, ProcessRecommendation, WaferAnalysis
 from analyses.services.batch_parser import parse_batch_csv
 from analyses.services.batch_insights import create_batch_insight
 from analyses.services.classifier import predict_wafer_map
@@ -33,8 +33,9 @@ def make_batch_code():
 
 def notify_batch_complete(batch, uploaded_by, insight=None):
     recipients = {uploaded_by.id: uploaded_by}
-    for assignment in batch.lot.assignments.select_related("user"):
-        recipients[assignment.user_id] = assignment.user
+    if batch.lot.line_id:
+        for assignment in LineAssignment.objects.filter(line=batch.lot.line).select_related("user"):
+            recipients[assignment.user_id] = assignment.user
 
     title = "배치 AI 분석 완료" if insight and not insight.is_fallback else "배치 분석 완료"
     for recipient in recipients.values():
@@ -127,10 +128,13 @@ def find_lot_for_rows(rows):
     if len(lot_ids) != 1:
         raise ValueError("CSV에는 하나의 lot_id만 포함되어야 합니다.")
     lot_id = lot_ids.pop()
-    try:
-        return Lot.objects.get(lot_id=lot_id)
-    except Lot.DoesNotExist as exc:
-        raise ValueError(f"DB에 LOT({lot_id})가 없습니다.") from exc
+    lot, _ = Lot.objects.get_or_create(
+        lot_id=lot_id,
+        defaults={
+            "process": next((row.process for row in rows if row.process), ""),
+        },
+    )
+    return lot
 
 
 def create_batch_from_csv_file(file_path, user):

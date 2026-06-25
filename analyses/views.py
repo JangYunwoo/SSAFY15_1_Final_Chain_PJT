@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.files.storage import FileSystemStorage
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.utils.text import get_valid_filename
@@ -25,14 +26,21 @@ def accessible_batches(user):
     batches = AnalysisBatch.objects.select_related("lot", "created_by")
     if user.is_staff:
         return batches
-    return batches.filter(lot__line__assignments__user=user).distinct()
+    return batches.filter(
+        Q(lot__line__assignments__user=user)
+        | Q(lot__line__isnull=True, created_by=user)
+    ).distinct()
 
 
 def accessible_analyses(user):
     analyses = WaferAnalysis.objects.select_related("lot", "batch", "user")
     if user.is_staff:
         return analyses
-    return analyses.filter(lot__line__assignments__user=user).distinct()
+    return analyses.filter(
+        Q(lot__line__assignments__user=user)
+        | Q(lot__line__isnull=True, user=user)
+        | Q(lot__line__isnull=True, batch__created_by=user)
+    ).distinct()
 
 
 def serialize_lot(lot):
@@ -196,7 +204,10 @@ def serialize_custom_analysis(custom, user=None):
 
 @login_required
 def api_lots(request):
-    lots = Lot.objects.all() if request.user.is_staff else Lot.objects.filter(line__assignments__user=request.user).distinct()
+    lots = Lot.objects.all() if request.user.is_staff else Lot.objects.filter(
+        Q(line__assignments__user=request.user)
+        | Q(line__isnull=True, analysis_batches__created_by=request.user)
+    ).distinct()
     lots = lots.order_by("lot_id")
     return api_ok({"lots": [serialize_lot(lot) for lot in lots]})
 

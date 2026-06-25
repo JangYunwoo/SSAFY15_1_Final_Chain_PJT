@@ -1,5 +1,5 @@
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.shortcuts import render
 
 from api_utils import api_ok
@@ -22,10 +22,22 @@ def api_home(request):
         batch_count = AnalysisBatch.objects.count()
     else:
         lines = Line.objects.filter(assignments__user=request.user).distinct()
-        lots = Lot.objects.filter(line__in=lines).distinct()
-        analyses = WaferAnalysis.objects.filter(lot__in=lots).select_related("lot", "batch", "user")
-        batches = AnalysisBatch.objects.filter(lot__in=lots).select_related("lot")[:5]
-        batch_count = AnalysisBatch.objects.filter(lot__in=lots).count()
+        lots = Lot.objects.filter(
+            Q(line__in=lines)
+            | Q(line__isnull=True, analysis_batches__created_by=request.user)
+        ).distinct()
+        analysis_filter = (
+            Q(lot__line__in=lines)
+            | Q(lot__line__isnull=True, user=request.user)
+            | Q(lot__line__isnull=True, batch__created_by=request.user)
+        )
+        batch_filter = (
+            Q(lot__line__in=lines)
+            | Q(lot__line__isnull=True, created_by=request.user)
+        )
+        analyses = WaferAnalysis.objects.filter(analysis_filter).select_related("lot", "batch", "user")
+        batches = AnalysisBatch.objects.filter(batch_filter).select_related("lot")[:5]
+        batch_count = AnalysisBatch.objects.filter(batch_filter).count()
     sample = list(analyses.filter(status=WaferAnalysis.STATUS_DONE)[:100])
     trend_counts = {}
     normal_count = 0
