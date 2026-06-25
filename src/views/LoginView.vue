@@ -3,6 +3,8 @@ import { reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../services/api";
 import { store } from "../services/store";
+import logoImage from "../assets/logo.png";
+import watorLogo from "../assets/wator.png";
 
 const router = useRouter();
 const form = reactive({ username: "", password: "" });
@@ -27,8 +29,9 @@ async function submit() {
 <template>
   <section class="auth-page">
     <form class="auth-panel form" @submit.prevent="submit">
-      <div>
-        <h1>Wafer Insight</h1>
+      <div class="auth-brand">
+        <div class="auth-hero-logo" :style="{ backgroundImage: `url(${watorLogo})` }" aria-label="WATOR logo"></div>
+        <img class="auth-logo-text" :src="logoImage" alt="WATOR">
       </div>
       <div v-if="error" class="error">{{ error }}</div>
       <div class="field">
@@ -40,7 +43,7 @@ async function submit() {
         <input v-model="form.password" class="input" type="password" autocomplete="current-password" required>
       </div>
       <button class="btn primary" :disabled="loading">{{ loading ? "로그인 중" : "로그인" }}</button>
-      <router-link to="/accounts/register/" class="muted">계정이 없으면 회원가입</router-link>
+      <router-link to="/accounts/register/" class="muted">회원가입</router-link>
     </form>
   </section>
 </template>

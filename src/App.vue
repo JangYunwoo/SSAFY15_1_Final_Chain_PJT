@@ -4,6 +4,8 @@ import { useRoute, useRouter } from "vue-router";
 import { api } from "./services/api";
 import { dateText } from "./utils/format";
 import { store } from "./services/store";
+import glassesLogo from "./assets/glasses.png";
+import logoImage from "./assets/logo.png";
 
 const router = useRouter();
 const route = useRoute();
@@ -139,7 +141,10 @@ onBeforeUnmount(() => {
   <router-view v-if="isPublic" />
   <div v-else class="app-shell">
     <aside class="sidebar no-print" :class="{ open: navOpen }">
-      <router-link class="brand" to="/">Wafer Insight</router-link>
+      <router-link class="brand" to="/">
+        <img :src="glassesLogo" alt="" aria-hidden="true">
+        <img class="brand-logo-text" :src="logoImage" alt="WATOR">
+      </router-link>
       <nav class="nav">
         <router-link to="/">대시보드</router-link>
         <router-link to="/analyses/upload/">분석 업로드</router-link>
